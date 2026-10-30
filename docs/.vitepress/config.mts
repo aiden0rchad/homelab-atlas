@@ -29,6 +29,7 @@ export default defineConfig({
         text: 'Start here',
         items: [
           { text: 'Getting started', link: '/getting-started' },
+          { text: 'Install on Unraid', link: '/unraid' },
           { text: 'Discovery', link: '/discovery' },
           { text: 'Privacy and deployment', link: '/privacy' },
         ],

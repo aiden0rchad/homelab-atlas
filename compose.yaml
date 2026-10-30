@@ -1,3 +1,7 @@
+# Source build: run this file only from the complete repository because it needs
+# deploy/Dockerfile and app/. For a released image or stack manager, use
+# https://github.com/aiden0rchad/homelab-atlas/releases/latest/download/compose.release.yaml
+# See https://aiden0rchad.github.io/homelab-atlas/getting-started#which-compose-file
 services:
   atlas:
     build:

@@ -1,3 +1,5 @@
+# Release deployment: this file pulls the ready-made image and does not need the
+# source tree. See https://aiden0rchad.github.io/homelab-atlas/getting-started
 services:
   atlas:
     image: ghcr.io/aiden0rchad/homelab-atlas:${ATLAS_VERSION:-0.12.0}

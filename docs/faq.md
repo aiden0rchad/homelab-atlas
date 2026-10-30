@@ -8,6 +8,10 @@ Short answers to common setup and discovery problems. See [Troubleshooting](/tro
 
 A manual diagram needs only a running Atlas server and a current browser. There is no account or AI service, and discovery is optional. Docker, live Nmap, and XML import have different prerequisites in the [requirements table](/discovery#requirements-by-method).
 
+### Why does my stack report `deploy/Dockerfile: no such file or directory`? {#missing-deploy-dockerfile}
+
+The root `compose.yaml` is a source-build file. It needs the complete repository, including `deploy/Dockerfile` and `app/`. A stack editor that received only that YAML cannot build it. Replace the stack contents with the complete released [`compose.release.yaml`](https://github.com/aiden0rchad/homelab-atlas/releases/download/v0.12.0/compose.release.yaml), which pulls the ready-made image. See [Which Compose file?](/getting-started#which-compose-file).
+
 ### Why is Nmap unavailable in the released image? {#nmap-unavailable}
 
 The published GHCR image is intentionally scanner-free; setting an environment flag on that image cannot add Nmap. The in-app guide separates Docker Compose from native Go. From a source checkout or extracted release ZIP, preserve the existing `.env`, add `ATLAS_WITH_NMAP=true`, then run `ATLAS_WITH_NMAP=true docker compose up -d --build`. For a native install, install Nmap and its detection data with the operating-system package manager, restart Atlas, then choose **Check setup**. **Import Nmap XML instead** remains available throughout. See [Network scan](/discovery#network-scan).
@@ -15,6 +19,8 @@ The published GHCR image is intentionally scanner-free; setting an environment f
 ### Why is my project empty after changing the URL or updating Atlas?
 
 Autosave belongs to the browser origin: protocol, hostname, and port. Use the same browser profile and origin, or import a JSON backup. Atlas does not synchronize projects through a container volume. See [trusted LAN access](/getting-started#trusted-lan-access) and [sharing and backup](/sharing).
+
+Adding an appdata or `/config` volume does not move browser storage into the container. Save project JSON for a portable, editable backup.
 
 ### Why can’t I find or upload a custom logo?
 
@@ -37,6 +43,8 @@ Choose the blocked Docker or network method to see its diagnostic and **Check ag
 ### What can Docker discovery see?
 
 Only inventory from the Docker daemon configured for that collector is listed. Other LAN hosts, Kubernetes, and Podman are not discovered automatically. A remote collector or [Hawser Standard mode](/discovery#hawser-standard-mode) can point at another daemon. Hawser Edge is not supported, and Atlas never needs an exposed unauthenticated Docker API.
+
+Installing the editor alone does not enable discovery. It needs a separately configured collector, an explicit scan, or an imported snapshot or Nmap XML file.
 
 ### Are the API and collector tokens interchangeable? {#api-vs-collector-token}
 

@@ -1,60 +1,179 @@
 # Getting started
 
-Homelab Atlas runs in your browser and is served from your own machine. The published Docker image is the easiest way to run it.
+Atlas runs a small server and opens the editor in your browser. It needs no account, AI service, or database. Choose the installation that matches the machine where Atlas will run.
 
-## Requirements
+| Your setup | Start here |
+|---|---|
+| Docker Desktop or Docker Engine with Compose | [Released Compose file](#docker-compose-recommended), recommended |
+| Unraid | [Unraid Docker tab](/unraid) |
+| Portainer, Dockge, or a Compose-compatible Hawser stack UI | [Stack manager](#stack-manager) |
+| Docker without Compose | [One Docker command](#docker-run) |
+| Build the container yourself | [Source build](#build-from-source) |
+| No Docker | [Native Go](#direct-go-fallback) |
 
-- Docker Engine or Docker Desktop with Compose v2
-- A current desktop browser
+Install Docker from the [official Docker guide](https://docs.docker.com/get-started/get-docker/). Docker Desktop must be running. On Linux, the Docker daemon must be running and your user must have permission to use it. Unraid users do not need to install Compose.
 
-You only need Git if you're building from source. Running without Docker requires Go 1.26 or newer. Node.js is only needed for tests, logo maintenance, and work on these docs. Python is used only by the release-file tests.
+<a id="requirements"></a>
 
-Manual diagrams need only Atlas and a browser. Discovery is optional and has separate requirements for Docker, live Nmap, and XML import. See the [discovery requirements](/discovery#requirements-by-method) or the [FAQ](/faq).
+## Which Compose file? {#which-compose-file}
 
-## Install the released image
+> [!WARNING]
+> Do not copy the root `compose.yaml` alone into a stack manager. It builds from source and needs the complete repository, including `deploy/Dockerfile` and `app/`.
 
-Download the release Compose file, then start the container:
+| File | What it does | Use it when |
+|---|---|---|
+| Release asset `compose.release.yaml` | Pulls the ready-made `0.12.0` image | Downloading a file or pasting into a stack manager |
+| Repository `deploy/compose.release.yaml` | Same release-image configuration | Running from a complete repository checkout |
+| Root `compose.yaml` | Builds an image from the source tree | You cloned or extracted the complete source |
 
-```sh
-curl -fsSLO https://github.com/aiden0rchad/homelab-atlas/releases/download/v0.12.0/compose.release.yaml
-docker compose -f compose.release.yaml up -d
+<a id="install-the-released-image"></a>
+
+## Docker Compose, recommended {#docker-compose-recommended}
+
+1. Create a dedicated folder on the machine that actually runs Docker, then open a terminal in it.
+2. Download the released Compose file:
+
+   Linux or macOS:
+
+   ```sh
+   curl -fsSLO https://github.com/aiden0rchad/homelab-atlas/releases/download/v0.12.0/compose.release.yaml
+   ```
+
+   Windows PowerShell:
+
+   ```powershell
+   curl.exe -fsSLO https://github.com/aiden0rchad/homelab-atlas/releases/download/v0.12.0/compose.release.yaml
+   ```
+
+   Or open the [Compose file](https://github.com/aiden0rchad/homelab-atlas/releases/download/v0.12.0/compose.release.yaml) in a browser and save it as `compose.release.yaml` in that folder.
+3. Start Atlas:
+
+   ```sh
+   docker compose -f compose.release.yaml up -d
+   docker compose -f compose.release.yaml ps
+   ```
+
+4. Open `http://localhost:8080`. Check the server if needed:
+
+   ```sh
+   curl http://localhost:8080/healthz
+   ```
+
+   A healthy response is `ok`.
+
+The default binding is `127.0.0.1`, so only a browser on the Docker machine can connect. If Docker runs on Unraid or another server, `localhost` on your laptop means your laptop, not that server. Follow [trusted LAN access](#trusted-lan-access) instead.
+
+## Open it from another computer {#trusted-lan-access}
+
+Atlas has no login. Use this only on a trusted LAN or through a VPN.
+
+1. Create `.env` beside `compose.release.yaml`:
+
+   ```dotenv
+   ATLAS_BIND=0.0.0.0
+   ```
+
+2. Recreate the container:
+
+   ```sh
+   docker compose -f compose.release.yaml up -d
+   ```
+
+3. Open `http://SERVER_IP:8080`, replacing `SERVER_IP` with the Docker machine's address.
+
+Keep the setting in `.env`. A one-time shell variable can disappear on the next update and silently restore localhost-only access. To use a different host port, change the port mapping before deploying but keep container port `8080`.
+
+The editor and static assets work remotely without discovery settings. The optional discovery API also requires the exact browser hostname or IP, with no scheme or port, plus a separate token:
+
+```dotenv
+ATLAS_BIND=0.0.0.0
+ATLAS_ALLOWED_HOSTS=localhost,127.0.0.1,::1,192.168.1.20
+ATLAS_API_TOKEN=replace-with-at-least-32-random-characters
 ```
 
-Open `http://localhost:8080`. Verify the server if needed:
+Generate the token with `openssl rand -hex 32`. This token protects discovery API calls. It is not a login for the editor. See [remote editor access](/discovery#remote-editor-access).
 
-```sh
-curl http://localhost:8080/healthz
+## Stack manager {#stack-manager}
+
+This path is for Docker Compose stacks in Portainer, Dockge, or a Compose-compatible Hawser stack UI. It does not describe Docker Swarm.
+
+1. Download the complete [released `compose.release.yaml`](https://github.com/aiden0rchad/homelab-atlas/releases/download/v0.12.0/compose.release.yaml).
+2. Create a stack or project in the manager. Paste the entire file into its editor or upload it.
+3. For access from another computer, set `ATLAS_BIND=0.0.0.0` through the manager's stack environment or supported `.env` file. The release file otherwise binds to `127.0.0.1`.
+4. Deploy the stack, then open `http://SERVER_IP:8080`.
+
+Do not paste the root source-build `compose.yaml`. If the manager does not support profiles or the internal networks in the release file, use this editor-only Compose file or follow [Docker run](#docker-run):
+
+```yaml
+services:
+  atlas:
+    image: ghcr.io/aiden0rchad/homelab-atlas:0.12.0
+    ports:
+      - "8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
 ```
 
-A healthy response is `ok`. By default, the Compose file pulls `ghcr.io/aiden0rchad/homelab-atlas:0.12.0`. It only listens on the machine running Docker and keeps the container read-only, drops its capabilities, and enables the no-new-privileges setting. Docker discovery stays off unless you enable its profile.
+No Docker socket is needed for the editor. For optional remote discovery, add the exact browser host to `ATLAS_ALLOWED_HOSTS` and configure a separate `ATLAS_API_TOKEN` later. Manual editing works without either setting.
 
-## Pin and update versions
+## Docker run {#docker-run}
 
-To pin a version, create `.env` next to `compose.release.yaml`:
+Linux and macOS, local access only:
+
+```sh
+docker run -d \
+  --name homelab-atlas \
+  --restart unless-stopped \
+  -p 127.0.0.1:8080:8080 \
+  --read-only \
+  --tmpfs /tmp:size=16m,mode=1777 \
+  --cap-drop ALL \
+  --security-opt no-new-privileges:true \
+  ghcr.io/aiden0rchad/homelab-atlas:0.12.0
+```
+
+For trusted-LAN access, use `-p 8080:8080` instead of the localhost mapping, then open `http://SERVER_IP:8080`. Do not use both mappings. On Windows, enter the command on one line or join the lines using PowerShell backticks instead of Unix backslashes.
+
+Useful commands:
+
+```sh
+docker logs homelab-atlas
+docker stop homelab-atlas
+docker start homelab-atlas
+```
+
+Before upgrading, save project JSON. Pull the new versioned image, remove and recreate the container with the same flags. Project data lives in browser storage, so no app-data volume is required.
+
+<a id="pin-and-update-versions"></a>
+
+## Pin, update, and stop Compose
+
+To pin a version, create `.env` beside `compose.release.yaml`:
 
 ```dotenv
 ATLAS_VERSION=0.12.0
 ```
 
-When you want to update, change `ATLAS_VERSION` in `.env` to a version that has been published. Then pull it and recreate the container without changing the hostname or port:
+Update the version only after it is published, then run:
 
 ```sh
 docker compose -f compose.release.yaml pull
 docker compose -f compose.release.yaml up -d
 ```
 
-Save an editable JSON project before you update or downgrade. Your project is stored by the browser, not in a container volume. Atlas 0.12 uses schema version 6 and imports schema versions 1 through 5. Existing inventory, discovery bindings, uploaded logos, connections, and manual layouts are preserved. Atlas does not migrate projects backward.
+Stop the release deployment with `docker compose -f compose.release.yaml down`. Save editable JSON before an update or downgrade. Atlas 0.12 uses schema version 6 and imports versions 1 through 5. It does not migrate projects backward.
 
-The image tags work like this:
+Tags `0.12.0` and `v0.12.0` identify this release. `0.12` follows compatible patches, `latest` follows stable releases, and a published digest never changes. See [releases](/releases/).
 
-- `0.12.0` and `v0.12.0` identify this release.
-- `0.12` moves to the newest compatible 0.12 patch.
-- `latest` moves to the newest stable release.
-- A published image digest never changes; the [release guide](/releases/) explains how to pin one.
+## Build from source {#build-from-source}
 
-## Build from source
-
-Install Git, clone the repository, and build the current source:
+Use a complete clone or the complete release ZIP. The source Compose file cannot build from a copied YAML file alone.
 
 ```sh
 git clone https://github.com/aiden0rchad/homelab-atlas.git
@@ -62,71 +181,35 @@ cd homelab-atlas
 docker compose up --build -d
 ```
 
-Update a source deployment with:
+To use the release ZIP, download `homelab-atlas-0.12.0.zip`, extract it with your file manager, open a terminal in the extracted `homelab-atlas-0.12.0` folder, and run the same `docker compose up --build -d` command. Stop with `docker compose down`.
+
+Update a cloned source deployment with:
 
 ```sh
 git pull --ff-only
 docker compose up --build -d
 ```
 
-Stop a released-image deployment with:
-
-```sh
-docker compose -f compose.release.yaml down
-```
-
-Stop a source-built deployment from its checkout with:
-
-```sh
-docker compose down
-```
-
 ## Run without Docker {#direct-go-fallback}
 
-From a source checkout, run:
+Install [Go 1.26 or newer](https://go.dev/doc/install). The release ZIP contains source code and requires Go. It is not a standalone binary. Node.js, npm, and Python are not needed at runtime.
 
-```sh
-go run ./app
-```
+1. Clone the repository or download and extract `homelab-atlas-0.12.0.zip`.
+2. Open a terminal in its top-level folder.
+3. Run:
 
-For the portable release, extract the ZIP and move into its top-level directory first:
+   ```sh
+   go run ./app
+   ```
 
-```sh
-unzip homelab-atlas-0.12.0.zip
-cd homelab-atlas-0.12.0
-go run ./app
-```
+4. Keep the terminal open and visit `http://localhost:8080`. Press Ctrl+C to stop.
 
-Open `http://localhost:8080`. The server only exposes the embedded editor assets and, by default, only listens on the same machine.
-
-## Open it from another computer {#trusted-lan-access}
-
-Atlas has no login system. Only make it available on a LAN you trust:
-
-```sh
-ATLAS_BIND=0.0.0.0 docker compose -f compose.release.yaml up -d
-```
-
-Open `http://<server-address>:8080` from the other computer. The browser sees that address as a different site from `localhost`, so it has separate browser storage. Save JSON before changing the hostname, port, or protocol. Do not expose Homelab Atlas directly to the public internet.
-
-The discovery API rejects hosts outside its allowlist. If you need discovery from another computer, put these values in `.env` before starting Compose:
-
-```dotenv
-ATLAS_BIND=0.0.0.0
-ATLAS_ALLOWED_HOSTS=localhost,127.0.0.1,::1,atlas.lan
-ATLAS_API_TOKEN=replace-with-at-least-32-random-characters
-```
-
-Generate the API token with `openssl rand -hex 32`. Replace `atlas.lan` with the exact hostname or IP used in the browser. After an API `401`, Atlas shows a masked token field; enter the token and choose **Unlock**. It stays in memory only. Use a trusted LAN or a TLS reverse proxy.
+For trusted-LAN access, run `go run ./app --host 0.0.0.0 --port 8080`, then open `http://SERVER_IP:8080`. Atlas has no login, so keep it on a trusted LAN or VPN. Optionally build once with `go build -o atlas ./app`, then run `./atlas`.
 
 ## First diagram
 
-1. Open **File** and choose **Load example** to explore or **Start empty**.
-2. Add a device from the inventory rail.
-3. Select its card or inventory row to open the inspector.
-4. Add a service group and local logo tiles.
-5. Choose **File → Save project** before sharing or changing origins.
+1. Open **File** and choose **Load example** or **Start empty**.
+2. Add a device and services.
+3. Choose **File → Save project** before sharing, updating, or changing the URL.
 
-The [annotated editor overview](/editor#editor-guide) covers the controls. The [privacy and deployment page](/privacy) explains what stays in the browser and why Atlas should stay off the public internet. For setup or discovery failures, check the [FAQ](/faq).
-
-To enable the optional Docker collector, continue with [Docker discovery](/discovery).
+Projects are stored in browser storage and exported as JSON. They are not stored in the container. Continue with the [editor guide](/editor), [sharing and backup](/sharing), or optional [discovery guide](/discovery).

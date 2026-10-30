@@ -58,6 +58,8 @@ I posted a diagram of my homelab on Reddit and someone asked how they could make
 
 Atlas only knows what you add or import. Start with [installation and safe deployment](/getting-started), then use the [editor guide](/editor) when you want more detail on the controls.
 
+Quick paths: [Docker Compose](/getting-started#docker-compose-recommended), [Unraid](/unraid), [stack managers](/getting-started#stack-manager), [Docker run](/getting-started#docker-run), or [native Go](/getting-started#direct-go-fallback).
+
 <div class="support">
 If Homelab Atlas is useful to you, you can <a href="https://www.buymeacoffee.com/aiden0rchad" target="_blank" rel="noopener noreferrer">buy me a coffee</a>.
 </div>

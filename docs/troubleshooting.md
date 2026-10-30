@@ -6,7 +6,11 @@ Start with the [FAQ](/faq) for setup, discovery, layout, and saving explanations
 
 | Symptom | Action |
 |---|---|
+| `deploy/Dockerfile: no such file or directory` in a stack manager | The root `compose.yaml` builds from the complete source tree. Replace it with the complete released [`compose.release.yaml`](https://github.com/aiden0rchad/homelab-atlas/releases/download/v0.12.0/compose.release.yaml). See [Which Compose file?](/getting-started#which-compose-file). |
+| Cannot connect to the Docker daemon | Start Docker Desktop, or start the Linux Docker daemon and confirm your user has permission to use it. Do not start Docker only to read or edit the YAML. |
+| `localhost:8080` fails from a laptop | `localhost` means the laptop. Use `ATLAS_BIND=0.0.0.0` on the Docker server, recreate the container, and open `http://SERVER_IP:8080`. See [trusted LAN access](/getting-started#trusted-lan-access). |
 | Project is empty at another URL | Use the same browser profile, hostname, port, and protocol. If you changed the address, import a saved JSON backup. |
+| Project is missing after container recreation | Projects are in browser storage, not `/config` or appdata. Return to the same browser origin or import saved JSON. |
 | “Not saved — storage unavailable” | Allow site storage, leave private mode, and check the browser's storage quota or policy. If the project is still open, download JSON right away. |
 | Another-tab conflict banner | Download the project in the current tab first. Then choose **Keep my edits** or **Load saved version** based on which copy you want. |
 | Import rejected | Make sure it is valid Homelab Atlas schema-version-6 JSON, or schema version 1 through 5 for migration, no larger than 2 MB. Unknown keys, duplicate or unsafe IDs, unknown logo IDs, and bad references are rejected. |
@@ -16,6 +20,7 @@ Start with the [FAQ](/faq) for setup, discovery, layout, and saving explanations
 | Source-built container does not start | Run `docker compose config`, rebuild it, check `docker compose ps`, and read `docker compose logs atlas`. |
 | Health check fails | Try `curl http://localhost:8080/healthz`. Make sure the container is running and listening on the interface you expected. |
 | No discovery servers listed | Open **Docker apps** and follow the one-screen-at-a-time setup guide. For local Compose, preserve the existing `.env`, set `ATLAS_COLLECTOR_TOKEN`, restart with the command matching `compose.yaml` or `compose.release.yaml`, then choose **Check setup**. For Docker on another server, import the recommended one-time snapshot or follow the remote collector guide. |
+| Editor works but nothing is discovered | Discovery is optional and never automatic. Configure a restricted collector, start an explicit Nmap scan, or import Docker JSON or Nmap XML. The editor needs no Docker socket. |
 | Collector exits immediately | `ATLAS_COLLECTOR_TOKEN` must be at least 32 characters. Check the read-only Docker socket mount and `docker compose logs collector`. |
 | Scan returns 401 | Enter the separate `ATLAS_API_TOKEN` configured on the editor server. The UI keeps it in memory only. |
 | Scan returns 403 from another hostname | Add the exact browser hostname or IP to `ATLAS_ALLOWED_HOSTS`. A non-loopback entry also requires `ATLAS_API_TOKEN` of at least 32 characters. |
