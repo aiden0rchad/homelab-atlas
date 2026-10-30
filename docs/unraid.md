@@ -27,10 +27,10 @@ Change the host port if it is occupied. Keep the container port at `8080`.
 
 4. If your Unraid version shows a WebUI field in advanced settings, set it to `http://[IP]:[PORT:8080]`. This field is optional.
 5. Choose **Apply**, wait for the image download, and confirm the container is running.
-6. Open `http://UNRAID_IP:HOST_PORT` manually, replacing both values. This works even when the WebUI field is unavailable.
+6. Open `http://UNRAID_IP:HOST_PORT` manually, replacing both values. For example, `http://192.168.1.20:8080`. This works even when the WebUI field is unavailable. Atlas has no login, so keep it on a trusted LAN or VPN.
 7. Load the example, then choose **File → Save project** to make your first editable JSON backup.
 
-Do not add `/config` or appdata storage. Atlas projects live in browser storage and JSON files, not in the container. Do not mount the Docker socket into the editor container. The published image already listens on `0.0.0.0`; `ATLAS_BIND` is only Compose interpolation and is not an image environment variable.
+Do not add `/config` or appdata storage. Atlas projects live in browser storage and JSON files, not in the container. Do not mount the Docker socket into the editor container. The published image already listens on `0.0.0.0`. `ATLAS_BIND` only controls the Compose file's port mapping; adding it as an Unraid container variable does not change the mapping.
 
 The [Unraid container guide](https://docs.unraid.net/unraid-os/using-unraid-to/run-docker-containers/managing-and-customizing-containers/) explains Bridge networking, host-port changes, and WebUI shortcuts.
 
@@ -42,7 +42,9 @@ The [Unraid container guide](https://docs.unraid.net/unraid-os/using-unraid-to/r
 
 ## Optional discovery
 
-The editor works without discovery. Do not mount `/var/run/docker.sock` into it and expect apps to appear. For Docker inventory, use the [restricted collector setup](/discovery#local-compose-setup), Hawser Standard mode, or import a Docker snapshot.
+The editor works without discovery. Do not mount `/var/run/docker.sock` into it and expect apps to appear. The simplest Unraid path is to [create a one-time Docker snapshot in the Unraid terminal](/discovery#import-a-snapshot), then import and review it in Atlas.
+
+For persistent inventory, follow [remote collectors](/discovery#remote-collectors), including Hawser Standard mode. The local Compose profile is another optional path only if you separately run Atlas through Compose.
 
 The published Atlas image does not include the Nmap scanner. Import Nmap XML, build the documented source image with Nmap, or run a native Go installation with Nmap installed. See [network scan](/discovery#network-scan).
 

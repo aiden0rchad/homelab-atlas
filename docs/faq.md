@@ -8,13 +8,13 @@ Short answers to common setup and discovery problems. See [Troubleshooting](/tro
 
 A manual diagram needs only a running Atlas server and a current browser. There is no account or AI service, and discovery is optional. Docker, live Nmap, and XML import have different prerequisites in the [requirements table](/discovery#requirements-by-method).
 
-### Why does my stack report `deploy/Dockerfile: no such file or directory`? {#missing-deploy-dockerfile}
+### Why does my stack report `resolve : lstat .../deploy: no such file or directory` or `deploy/Dockerfile: no such file or directory`? {#missing-deploy-dockerfile}
 
 The root `compose.yaml` is a source-build file. It needs the complete repository, including `deploy/Dockerfile` and `app/`. A stack editor that received only that YAML cannot build it. Replace the stack contents with the complete released [`compose.release.yaml`](https://github.com/aiden0rchad/homelab-atlas/releases/download/v0.12.0/compose.release.yaml), which pulls the ready-made image. See [Which Compose file?](/getting-started#which-compose-file).
 
 ### Why is Nmap unavailable in the released image? {#nmap-unavailable}
 
-The published GHCR image is intentionally scanner-free; setting an environment flag on that image cannot add Nmap. The in-app guide separates Docker Compose from native Go. From a source checkout or extracted release ZIP, preserve the existing `.env`, add `ATLAS_WITH_NMAP=true`, then run `ATLAS_WITH_NMAP=true docker compose up -d --build`. For a native install, install Nmap and its detection data with the operating-system package manager, restart Atlas, then choose **Check setup**. **Import Nmap XML instead** remains available throughout. See [Network scan](/discovery#network-scan).
+The published GHCR image is intentionally scanner-free; setting an environment flag on that image cannot add Nmap. The in-app guide separates Docker Compose from native Go. From a source checkout or extracted release ZIP, open the existing `.env` or create it if absent, add or update `ATLAS_WITH_NMAP=true`, keep every other entry, then run `docker compose up -d --build`. For a native install, install Nmap and its detection data with the operating-system package manager, restart Atlas, then choose **Check setup**. **Import Nmap XML instead** remains available throughout. See [Network scan](/discovery#network-scan).
 
 ### Why is my project empty after changing the URL or updating Atlas?
 
@@ -34,7 +34,7 @@ The whole file must pass schema and reference validation before Atlas replaces t
 
 ### Why are no Docker collectors listed? {#no-docker-collectors}
 
-Open **Docker apps** and follow the setup guide for the server where Docker runs. For local Compose, set `ATLAS_COLLECTOR_TOKEN` to the same value of at least 32 characters, preserve other `.env` entries, then start the profile with `docker compose --profile discovery up -d`. Include `-f compose.release.yaml` for the downloaded Compose file. An explicit `ATLAS_DISCOVERY_SOURCES` file overrides the local source. For another server, the guide recommends a one-time snapshot before the advanced remote collector path. Follow [Local Compose setup](/discovery#local-compose-setup).
+Open **Docker apps** and follow the setup guide for the server where Docker runs. For local Compose, open the existing `.env` or create it if absent, add or update `ATLAS_COLLECTOR_TOKEN` with the same value of at least 32 characters, and keep every other entry. Then start the profile with `docker compose --profile discovery up -d`. Include `-f compose.release.yaml` for the downloaded Compose file. An explicit `ATLAS_DISCOVERY_SOURCES` file overrides the local source. For another server, the guide recommends a one-time snapshot before the advanced remote collector path. Follow [Local Compose setup](/discovery#local-compose-setup).
 
 ### Why could Atlas not check discovery readiness?
 

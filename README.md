@@ -31,7 +31,7 @@ docker compose -f compose.release.yaml up -d
 
 Open `http://localhost:8080`. This uses the `0.12.0` image and only listens on the machine running Docker. Images are available for Linux AMD64 and ARM64.
 
-Choose another install path: [Unraid](https://aiden0rchad.github.io/homelab-atlas/unraid), [Portainer, Dockge, or Hawser stacks](https://aiden0rchad.github.io/homelab-atlas/getting-started#stack-manager), [Docker run](https://aiden0rchad.github.io/homelab-atlas/getting-started#docker-run), [source build](https://aiden0rchad.github.io/homelab-atlas/getting-started#build-from-source), or [native Go](https://aiden0rchad.github.io/homelab-atlas/getting-started#direct-go-fallback).
+Choose another install path: [Unraid](https://aiden0rchad.github.io/homelab-atlas/unraid), [Portainer, Dockge, or another Docker Compose stack manager](https://aiden0rchad.github.io/homelab-atlas/getting-started#stack-manager), [Docker run](https://aiden0rchad.github.io/homelab-atlas/getting-started#docker-run), [source build](https://aiden0rchad.github.io/homelab-atlas/getting-started#build-from-source), or [native Go](https://aiden0rchad.github.io/homelab-atlas/getting-started#direct-go-fallback).
 
 For access from another computer and updates, see the [setup guide](https://aiden0rchad.github.io/homelab-atlas/getting-started). The [release page](https://github.com/aiden0rchad/homelab-atlas/releases/latest) has the source ZIP, release Compose file, and checksums. The root `compose.yaml` builds from source and requires the complete repository; stack managers should use the released `compose.release.yaml`.
 
