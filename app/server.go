@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -37,7 +39,11 @@ type atlasServer struct {
 	apiToken     string
 	httpClient   *http.Client
 	nmap         *nmapScanner
+	projectFile  string
 }
+
+// maxProjectFileBytes bounds the optional shared project file (ATLAS_PROJECT_FILE).
+const maxProjectFileBytes = 16 << 20
 
 type staticAsset struct {
 	contentType string
@@ -74,13 +80,26 @@ func newAtlasServer(public fs.FS) (*atlasServer, error) {
 	if remote && token == "" {
 		return nil, errors.New("ATLAS_API_TOKEN is required when ATLAS_ALLOWED_HOSTS includes a non-loopback host")
 	}
+	projectFile := os.Getenv("ATLAS_PROJECT_FILE")
+	if projectFile != "" {
+		if !filepath.IsAbs(projectFile) {
+			return nil, errors.New("ATLAS_PROJECT_FILE must be an absolute path")
+		}
+		info, err := os.Stat(projectFile)
+		if err != nil {
+			return nil, fmt.Errorf("ATLAS_PROJECT_FILE is not readable: %w", err)
+		}
+		if !info.Mode().IsRegular() || info.Size() > maxProjectFileBytes {
+			return nil, errors.New("ATLAS_PROJECT_FILE must be a regular file of at most 16 MiB")
+		}
+	}
 	transport := &http.Transport{
 		Proxy:                 nil,
 		TLSHandshakeTimeout:   5 * time.Second,
 		ResponseHeaderTimeout: 8 * time.Second,
 	}
 	return &atlasServer{
-		assets: assets, assetPrefix: assetPrefix, sources: sources, allowedHosts: allowed, apiToken: token, nmap: nmapScanner,
+		assets: assets, assetPrefix: assetPrefix, sources: sources, allowedHosts: allowed, apiToken: token, nmap: nmapScanner, projectFile: projectFile,
 		httpClient: &http.Client{
 			Transport:     transport,
 			Timeout:       12 * time.Second,
@@ -219,6 +238,8 @@ func (server *atlasServer) ServeHTTP(writer http.ResponseWriter, request *http.R
 	switch {
 	case request.URL.Path == "/healthz":
 		serveHealth(writer, request)
+	case request.URL.Path == "/api/project":
+		server.serveProject(writer, request)
 	case request.URL.Path == "/api/discovery/sources":
 		server.serveSources(writer, request)
 	case request.URL.Path == "/api/discovery/scan":
@@ -232,6 +253,36 @@ func (server *atlasServer) ServeHTTP(writer http.ResponseWriter, request *http.R
 	default:
 		server.serveStatic(writer, request)
 	}
+}
+
+// serveProject returns the operator-provided project file (ATLAS_PROJECT_FILE) so the
+// editor can load a shared project at startup. It is read-only, serves exactly one fixed
+// file chosen by the operator (never a path from the request), and answers 404 when the
+// option is not set. The content is re-read on every request so an updated file is picked up.
+func (server *atlasServer) serveProject(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet && request.Method != http.MethodHead {
+		methodNotAllowed(writer, "GET, HEAD")
+		return
+	}
+	if server.projectFile == "" {
+		http.NotFound(writer, request)
+		return
+	}
+	file, err := os.Open(server.projectFile)
+	if err != nil {
+		http.Error(writer, "project file unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxProjectFileBytes+1))
+	if err != nil || len(data) > maxProjectFileBytes {
+		http.Error(writer, "project file unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	sum := sha256.Sum256(data)
+	writer.Header().Set("Cache-Control", "no-cache")
+	writer.Header().Set("ETag", `"`+hex.EncodeToString(sum[:16])+`"`)
+	writeBody(writer, request, http.StatusOK, "application/json; charset=utf-8", data)
 }
 
 func setSecurityHeaders(header http.Header) {

@@ -4,7 +4,7 @@ import {
   renderProject, sampleProject, setManualCard, uid, validateProject,
 } from './model.js';
 import { createExportSnapshot } from './export.js';
-import { applyProjectChange, filterInventory, hasStorageConflict, pngDimensions, updateSelection } from './state.js';
+import { applyProjectChange, fetchSharedProject, filterInventory, hasStorageConflict, pngDimensions, updateSelection } from './state.js';
 import { CUSTOM_LOGO_LIMITS, normalizeLogoUpload, verifyCustomLogoDecodes } from './custom-logos.js';
 import {
   applyDiscoveryPlan, captureProjectGuard, discoveryBinding, discoveryBindingLabel, filterDiscoveryFindings, matchDiscoveryLogo,
@@ -15,6 +15,8 @@ import { discoverySetupProgress, discoverySetupSteps, SETUP_COMMANDS, shouldOpen
 
 const $ = selector => document.querySelector(selector);
 const STORAGE_KEY = 'homelab-atlas.project';
+const SHARED_ETAG_KEY = 'homelab-atlas.shared-project-etag';
+const BEFORE_SHARED_KEY = 'homelab-atlas.before-shared-project';
 const DISCOVERY_PAGE_SIZE = 50;
 const TAB_ID = uid('tab');
 const templates = [
@@ -192,8 +194,35 @@ async function loadProject() {
     render();
     return;
   }
+  const shared = await loadSharedProject();
   render();
-  if (fresh) saveProject(); else setSaveStatus('Saved locally');
+  if (fresh || shared) saveProject(); else setSaveStatus('Saved locally');
+  if (shared) toast('Loaded the shared project file from the server. Your previous browser copy was kept as a backup in this browser.');
+}
+
+// Loads the optional server-side project file (ATLAS_PROJECT_FILE) once per file version.
+async function loadSharedProject() {
+  let seen = '';
+  try { seen = localStorage.getItem(SHARED_ETAG_KEY) || ''; } catch { /* storage unavailable: load every time */ }
+  const result = await fetchSharedProject(fetch.bind(window), seen);
+  if (result.status === 'invalid') {
+    toast(`The shared project file could not be loaded: ${result.error}`, true);
+    return false;
+  }
+  if (result.status !== 'loaded') return false;
+  try {
+    await verifyCustomLogoDecodes(result.project.customLogos);
+  } catch (error) {
+    toast(`The shared project file could not be loaded: ${error.message}`, true);
+    return false;
+  }
+  try {
+    const previous = localStorage.getItem(STORAGE_KEY);
+    if (previous) localStorage.setItem(BEFORE_SHARED_KEY, previous);
+    localStorage.setItem(SHARED_ETAG_KEY, result.etag);
+  } catch { /* the backup and version marker are best effort */ }
+  project = result.project;
+  return true;
 }
 
 function render() {
