@@ -4,7 +4,7 @@ import {
   renderProject, sampleProject, setManualCard, uid, validateProject,
 } from './model.js';
 import { createExportSnapshot } from './export.js';
-import { applyProjectChange, fetchSharedProject, filterInventory, hasStorageConflict, pngDimensions, updateSelection } from './state.js';
+import { adoptSharedProject, applyProjectChange, fetchSharedProject, filterInventory, hasStorageConflict, pngDimensions, SHARED_ETAG_KEY, updateSelection } from './state.js';
 import { CUSTOM_LOGO_LIMITS, normalizeLogoUpload, verifyCustomLogoDecodes } from './custom-logos.js';
 import {
   applyDiscoveryPlan, captureProjectGuard, discoveryBinding, discoveryBindingLabel, filterDiscoveryFindings, matchDiscoveryLogo,
@@ -15,8 +15,6 @@ import { discoverySetupProgress, discoverySetupSteps, SETUP_COMMANDS, shouldOpen
 
 const $ = selector => document.querySelector(selector);
 const STORAGE_KEY = 'homelab-atlas.project';
-const SHARED_ETAG_KEY = 'homelab-atlas.shared-project-etag';
-const BEFORE_SHARED_KEY = 'homelab-atlas.before-shared-project';
 const DISCOVERY_PAGE_SIZE = 50;
 const TAB_ID = uid('tab');
 const templates = [
@@ -194,35 +192,60 @@ async function loadProject() {
     render();
     return;
   }
-  const shared = await loadSharedProject();
   render();
-  if (fresh || shared) saveProject(); else setSaveStatus('Saved locally');
-  if (shared) toast('Loaded the shared project file from the server. Your previous browser copy was kept as a backup in this browser.');
+  if (fresh) saveProject(); else setSaveStatus('Saved locally');
+  // The editor is already usable: the shared file is fetched in the background and never awaited here.
+  offerSharedProject({ hadStoredProject: !fresh, startRevision: project.revision });
 }
 
-// Loads the optional server-side project file (ATLAS_PROJECT_FILE) once per file version.
-async function loadSharedProject() {
+// Offers the optional server-side project file (ATLAS_PROJECT_FILE) once per file version. The
+// answer may arrive after the user started editing: whatever is stored by then counts as an
+// existing project, so replacing it always needs the user's confirmation.
+async function offerSharedProject({ hadStoredProject, startRevision }) {
   let seen = '';
-  try { seen = localStorage.getItem(SHARED_ETAG_KEY) || ''; } catch { /* storage unavailable: load every time */ }
+  try { seen = localStorage.getItem(SHARED_ETAG_KEY) || ''; } catch { /* storage unavailable: offer every time */ }
   const result = await fetchSharedProject(fetch.bind(window), seen);
   if (result.status === 'invalid') {
     toast(`The shared project file could not be loaded: ${result.error}`, true);
-    return false;
+    return;
   }
-  if (result.status !== 'loaded') return false;
+  if (result.status !== 'loaded') return;
   try {
     await verifyCustomLogoDecodes(result.project.customLogos);
   } catch (error) {
     toast(`The shared project file could not be loaded: ${error.message}`, true);
-    return false;
+    return;
   }
+  let existingRaw = '';
   try {
-    const previous = localStorage.getItem(STORAGE_KEY);
-    if (previous) localStorage.setItem(BEFORE_SHARED_KEY, previous);
-    localStorage.setItem(SHARED_ETAG_KEY, result.etag);
-  } catch { /* the backup and version marker are best effort */ }
-  project = result.project;
-  return true;
+    if (hadStoredProject || project.revision !== startRevision) existingRaw = localStorage.getItem(STORAGE_KEY) || '';
+  } catch { existingRaw = 'unreadable'; /* the backup step will fail and stop the replacement */ }
+  const outcome = await adoptSharedProject({
+    shared: result,
+    existingRaw,
+    storage: localStorage,
+    confirmReplace: () => window.confirm('A shared project file is available on the server. Replace the diagram in this browser with it?\n\nYour current diagram is kept as a backup in this browser.'),
+    commit: shared => {
+      const previous = project;
+      project = shared;
+      if (saveProject()) {
+        history = [];
+        future = [];
+        selected = null;
+        render();
+        return true;
+      }
+      project = previous;
+      return false;
+    },
+  });
+  if (outcome.status === 'adopted') {
+    toast('Loaded the shared project file from the server. Your previous browser copy was kept as a backup in this browser.');
+  } else if (outcome.status === 'backup-failed') {
+    toast('The shared project file was not loaded: the backup of your current diagram could not be saved. Nothing was changed.', true);
+  } else if (outcome.status === 'save-failed') {
+    toast('The shared project file was not loaded: it could not be saved in this browser. Your current diagram is unchanged.', true);
+  }
 }
 
 function render() {
