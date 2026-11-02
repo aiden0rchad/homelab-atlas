@@ -3,20 +3,36 @@ import { parseProject, validateProject } from './model.js';
 // Optional shared project: when the server sets ATLAS_PROJECT_FILE, GET /api/project returns it.
 // A 404 (not configured) or any network failure leaves the browser copy untouched. The ETag is the
 // version marker: the file is only loaded when it differs from the one this browser already loaded.
-export async function fetchSharedProject(fetchFn, seenEtag) {
-  let response;
+// The request, including reading the body, is abandoned after `timeoutMs`: a slow or stalled server
+// must never keep the editor waiting, and an abandoned request counts as "unavailable".
+export const SHARED_PROJECT_TIMEOUT_MS = 5000;
+
+export async function fetchSharedProject(fetchFn, seenEtag, { timeoutMs = SHARED_PROJECT_TIMEOUT_MS } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    response = await fetchFn('/api/project', { cache: 'no-cache', credentials: 'same-origin' });
-  } catch {
-    return { status: 'unavailable' };
-  }
-  if (!response.ok) return { status: 'unavailable' };
-  const etag = response.headers.get('ETag') || '';
-  if (!etag || etag === seenEtag) return { status: 'unchanged', etag };
-  try {
-    return { status: 'loaded', etag, project: parseProject(await response.text()) };
-  } catch (error) {
-    return { status: 'invalid', etag, error: error.message };
+    let response;
+    try {
+      response = await fetchFn('/api/project', { cache: 'no-cache', credentials: 'same-origin', signal: controller.signal });
+    } catch {
+      return { status: 'unavailable' };
+    }
+    if (!response.ok) return { status: 'unavailable' };
+    const etag = response.headers.get('ETag') || '';
+    if (!etag || etag === seenEtag) return { status: 'unchanged', etag };
+    let text;
+    try {
+      text = await response.text();
+    } catch {
+      return { status: 'unavailable' };
+    }
+    try {
+      return { status: 'loaded', etag, project: parseProject(text) };
+    } catch (error) {
+      return { status: 'invalid', etag, error: error.message };
+    }
+  } finally {
+    clearTimeout(timer);
   }
 }
 

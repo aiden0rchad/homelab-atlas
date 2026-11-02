@@ -29,7 +29,33 @@ test('a new file version is parsed and returned', async () => {
   assert.equal(result.status, 'loaded');
   assert.equal(result.etag, '"v1"');
   assert.equal(result.project.title, 'Shared lab');
-  assert.deepEqual(requests, [['/api/project', { cache: 'no-cache', credentials: 'same-origin' }]]);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0][0], '/api/project');
+  assert.equal(requests[0][1].cache, 'no-cache');
+  assert.equal(requests[0][1].credentials, 'same-origin');
+  assert.ok(requests[0][1].signal, 'the request can be aborted');
+});
+
+test('a slow server is given up on after the timeout and is not an error for the editor', async () => {
+  let aborted = false;
+  const started = Date.now();
+  const result = await fetchSharedProject((url, options) => new Promise((resolve, reject) => {
+    options.signal.addEventListener('abort', () => { aborted = true; reject(new DOMException('aborted', 'AbortError')); });
+  }), '', { timeoutMs: 30 });
+  assert.equal(result.status, 'unavailable');
+  assert.equal(aborted, true, 'the pending request was aborted');
+  assert.ok(Date.now() - started < 2000);
+});
+
+test('a body that stalls after the headers is also given up on', async () => {
+  const result = await fetchSharedProject(async (url, options) => ({
+    ok: true,
+    headers: { get: () => '"v9"' },
+    text: () => new Promise((resolve, reject) => {
+      options.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+    }),
+  }), '', { timeoutMs: 30 });
+  assert.equal(result.status, 'unavailable');
 });
 
 test('the same file version is not loaded twice', async () => {
