@@ -36,6 +36,32 @@ export async function fetchSharedProject(fetchFn, seenEtag, { timeoutMs = SHARED
   }
 }
 
+export const SHARED_ETAG_KEY = 'homelab-atlas.shared-project-etag';
+export const BEFORE_SHARED_KEY = 'homelab-atlas.before-shared-project';
+
+// Replaces the browser project with the shared file, safely. Nothing is touched unless every step
+// before it succeeded: confirm (only when a project already exists) -> back up the old copy ->
+// save the new project -> only then remember the file version. A refusal or any failure leaves the
+// current project and the remembered version as they were, so the file is offered again next time.
+// `commit(project)` installs and saves the new project and returns false when saving failed.
+export async function adoptSharedProject({ shared, existingRaw, storage, confirmReplace, commit }) {
+  if (existingRaw) {
+    if (!(await confirmReplace())) return { status: 'declined' };
+    try {
+      storage.setItem(BEFORE_SHARED_KEY, existingRaw);
+    } catch {
+      return { status: 'backup-failed' };
+    }
+  }
+  if (!commit(shared.project)) return { status: 'save-failed' };
+  try {
+    storage.setItem(SHARED_ETAG_KEY, shared.etag);
+    return { status: 'adopted', versionMarked: true };
+  } catch {
+    return { status: 'adopted', versionMarked: false };
+  }
+}
+
 export function applyProjectChange(project, mutate) {
   const candidate = structuredClone(project);
   mutate(candidate);

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { sampleProject } from '../../app/public/model.js';
-import { fetchSharedProject } from '../../app/public/state.js';
+import { adoptSharedProject, BEFORE_SHARED_KEY, fetchSharedProject, SHARED_ETAG_KEY } from '../../app/public/state.js';
 
 function fakeResponse({ ok = true, etag = '"v1"', body = '' } = {}) {
   return { ok, headers: { get: name => (name.toLowerCase() === 'etag' ? etag : null) }, text: async () => body };
@@ -76,4 +76,93 @@ test('an invalid project is reported and not returned', async () => {
     assert.equal(result.project, undefined);
     assert.ok(result.error);
   }
+});
+
+function fakeStorage({ failOn = [] } = {}) {
+  const writes = [];
+  return {
+    writes,
+    setItem(key, value) {
+      if (failOn.includes(key)) throw new DOMException('quota', 'QuotaExceededError');
+      writes.push([key, value]);
+    },
+  };
+}
+
+function sharedFile(title = 'Shared lab') {
+  return { etag: '"v2"', project: { ...sampleProject(), title } };
+}
+
+test('with no project in the browser the shared file is adopted without asking', async () => {
+  const storage = fakeStorage();
+  const committed = [];
+  const result = await adoptSharedProject({
+    shared: sharedFile(), existingRaw: '', storage,
+    confirmReplace: () => { throw new Error('must not ask'); },
+    commit: project => { committed.push(project.title); return true; },
+  });
+  assert.equal(result.status, 'adopted');
+  assert.deepEqual(committed, ['Shared lab']);
+  assert.deepEqual(storage.writes, [[SHARED_ETAG_KEY, '"v2"']]);
+});
+
+test('an existing project is only replaced after the user confirms, backup first, version marker last', async () => {
+  const storage = fakeStorage();
+  const order = [];
+  const result = await adoptSharedProject({
+    shared: sharedFile(), existingRaw: 'OLD', storage,
+    confirmReplace: () => { order.push('confirm'); return true; },
+    commit: () => { order.push(`commit after ${storage.writes.map(w => w[0]).join(',') || 'nothing'}`); return true; },
+  });
+  assert.equal(result.status, 'adopted');
+  assert.deepEqual(order, ['confirm', `commit after ${BEFORE_SHARED_KEY}`]);
+  assert.deepEqual(storage.writes, [[BEFORE_SHARED_KEY, 'OLD'], [SHARED_ETAG_KEY, '"v2"']]);
+});
+
+test('declining the replacement changes nothing and does not mark the version as loaded', async () => {
+  const storage = fakeStorage();
+  let committed = false;
+  const result = await adoptSharedProject({
+    shared: sharedFile(), existingRaw: 'OLD', storage,
+    confirmReplace: () => false,
+    commit: () => { committed = true; return true; },
+  });
+  assert.equal(result.status, 'declined');
+  assert.equal(committed, false);
+  assert.deepEqual(storage.writes, []);
+});
+
+test('a failed backup leaves everything alone', async () => {
+  const storage = fakeStorage({ failOn: [BEFORE_SHARED_KEY] });
+  let committed = false;
+  const result = await adoptSharedProject({
+    shared: sharedFile(), existingRaw: 'OLD', storage,
+    confirmReplace: () => true,
+    commit: () => { committed = true; return true; },
+  });
+  assert.equal(result.status, 'backup-failed');
+  assert.equal(committed, false);
+  assert.deepEqual(storage.writes, []);
+});
+
+test('a failed save keeps the old project and does not mark the version as loaded', async () => {
+  const storage = fakeStorage();
+  const result = await adoptSharedProject({
+    shared: sharedFile(), existingRaw: 'OLD', storage,
+    confirmReplace: () => true,
+    commit: () => false,
+  });
+  assert.equal(result.status, 'save-failed');
+  assert.ok(!storage.writes.some(([key]) => key === SHARED_ETAG_KEY), 'the version marker is not written');
+});
+
+test('a version marker that cannot be written does not undo a saved project', async () => {
+  const storage = fakeStorage({ failOn: [SHARED_ETAG_KEY] });
+  const result = await adoptSharedProject({
+    shared: sharedFile(), existingRaw: '', storage,
+    confirmReplace: () => true,
+    commit: () => true,
+  });
+  assert.equal(result.status, 'adopted');
+  assert.equal(result.versionMarked, false);
 });
