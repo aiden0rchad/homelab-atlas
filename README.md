@@ -45,6 +45,27 @@ You can upload PNG, JPG, WebP, or SVG logos up to 2 MB, preview their contrast b
 
 The [editor guide](https://aiden0rchad.github.io/homelab-atlas/editor) covers the controls, and the [networking guide](https://aiden0rchad.github.io/homelab-atlas/networking) explains connections and VLANs.
 
+## Loading a shared project from the server
+
+Optional. If you set `ATLAS_PROJECT_FILE`, the server offers that project file to every browser that opens the editor, so a diagram kept on the server (for example one you generate from a script) shows up without importing it by hand.
+
+1. Put an Atlas project JSON file on the server, for example one saved with **File → Save project**.
+2. Set `ATLAS_PROJECT_FILE` to its absolute path. Atlas refuses to start if the path is relative, missing, not a regular file, or larger than 16 MiB. With Docker, mount the file read-only into the editor container:
+
+   ```yaml
+   services:
+     atlas:
+       environment:
+         ATLAS_PROJECT_FILE: /data/lab.atlas.json
+       volumes:
+         - ./lab.atlas.json:/data/lab.atlas.json:ro
+   ```
+
+   `atlas` is the editor service in `compose.release.yaml`; the snippet shows only what to add to it.
+3. Open the editor. The file is read again on every request, and a browser loads it only when its version differs from the one it already loaded. If the browser already holds a diagram, Atlas asks before replacing it, keeps the old copy as a backup in that browser, and leaves everything unchanged if the backup or the save fails. A slow server is given up on after 5 seconds and never holds up the editor.
+
+**Who can read the file.** `GET /api/project` has no login and `ATLAS_API_TOKEN` does not protect it, because the editor does not have a token when it starts. It answers any client that can reach the server with an allowed host name (`ATLAS_ALLOWED_HOSTS`) and the `X-Atlas-Request: 1` header, which `curl` can send. Treat the file as readable by everyone who can open Atlas: keep passwords, tokens and other secrets out of it, and keep the server on localhost or a trusted network, or behind a reverse proxy that requires authentication. The endpoint serves only the configured file, never a path taken from the request, and is read-only.
+
 ## A few things to know
 
 - **Save a JSON backup.** Autosave lives in your browser, not the container. Clearing browser data, using private browsing, or opening Atlas at a different hostname or port can make your project appear missing. A PNG or SVG can't be imported as an editable project.
