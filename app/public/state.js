@@ -13,7 +13,7 @@ export async function fetchSharedProject(fetchFn, seenEtag, { timeoutMs = SHARED
   try {
     let response;
     try {
-      response = await fetchFn('/api/project', { cache: 'no-cache', credentials: 'same-origin', signal: controller.signal });
+      response = await fetchFn('/api/project', { cache: 'no-cache', credentials: 'same-origin', headers: { 'X-Atlas-Request': '1' }, signal: controller.signal });
     } catch {
       return { status: 'unavailable' };
     }

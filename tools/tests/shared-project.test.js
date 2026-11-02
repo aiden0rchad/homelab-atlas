@@ -34,6 +34,7 @@ test('a new file version is parsed and returned', async () => {
   assert.equal(requests[0][1].cache, 'no-cache');
   assert.equal(requests[0][1].credentials, 'same-origin');
   assert.ok(requests[0][1].signal, 'the request can be aborted');
+  assert.equal(requests[0][1].headers['X-Atlas-Request'], '1', 'the server only answers requests that carry the Atlas header');
 });
 
 test('a slow server is given up on after the timeout and is not an error for the editor', async () => {

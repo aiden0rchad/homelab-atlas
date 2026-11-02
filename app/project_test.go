@@ -3,11 +3,52 @@ package main
 import (
 	"io/fs"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+var projectHeaders = map[string]string{"X-Atlas-Request": "1"}
+
+// The shared project is only served to requests that pass the same host, header and origin checks
+// as the discovery API (this blocks DNS rebinding and cross-site reads). The API token is not part
+// of it: the editor does not know a token when it starts.
+func TestProjectFileRequiresRequestChecks(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "project.json")
+	if err := os.WriteFile(file, []byte(`{"schemaVersion":6,"title":"one"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := testAtlasServer(t)
+	server.projectFile = file
+	server.apiToken = "a-token-the-editor-does-not-have-at-startup"
+
+	for name, test := range map[string]struct {
+		host    string
+		headers map[string]string
+	}{
+		"missing header": {"localhost", nil},
+		"foreign host":   {"rebind.example", projectHeaders},
+		"foreign origin": {"localhost", map[string]string{"X-Atlas-Request": "1", "Origin": "http://evil.example"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			record := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/api/project", nil)
+			req.Host = test.host
+			for key, value := range test.headers {
+				req.Header.Set(key, value)
+			}
+			server.ServeHTTP(record, req)
+			if record.Code != http.StatusForbidden || strings.Contains(record.Body.String(), "schemaVersion") {
+				t.Fatalf("status=%d body=%q", record.Code, record.Body.String())
+			}
+		})
+	}
+	if ok := request(server, http.MethodGet, "/api/project", nil, projectHeaders); ok.Code != http.StatusOK {
+		t.Fatalf("allowed request refused: status=%d", ok.Code)
+	}
+}
 
 func TestProjectFileDisabledByDefault(t *testing.T) {
 	server := testAtlasServer(t)
@@ -26,7 +67,7 @@ func TestProjectFileServedReadOnlyAndRereadOnChange(t *testing.T) {
 	server := testAtlasServer(t)
 	server.projectFile = file
 
-	first := request(server, http.MethodGet, "/api/project", nil, nil)
+	first := request(server, http.MethodGet, "/api/project", nil, projectHeaders)
 	if first.Code != http.StatusOK || first.Body.String() != `{"schemaVersion":6,"title":"one"}` {
 		t.Fatalf("first response: status=%d body=%q", first.Code, first.Body.String())
 	}
@@ -40,20 +81,20 @@ func TestProjectFileServedReadOnlyAndRereadOnChange(t *testing.T) {
 	if etag == "" {
 		t.Fatal("missing ETag")
 	}
-	if head := request(server, http.MethodHead, "/api/project", nil, nil); head.Code != http.StatusOK || head.Body.Len() != 0 || head.Header().Get("ETag") != etag {
+	if head := request(server, http.MethodHead, "/api/project", nil, projectHeaders); head.Code != http.StatusOK || head.Body.Len() != 0 || head.Header().Get("ETag") != etag {
 		t.Fatalf("HEAD: status=%d bodyLen=%d etag=%q", head.Code, head.Body.Len(), head.Header().Get("ETag"))
 	}
 
 	if err := os.WriteFile(file, []byte(`{"schemaVersion":6,"title":"two"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	second := request(server, http.MethodGet, "/api/project", nil, nil)
+	second := request(server, http.MethodGet, "/api/project", nil, projectHeaders)
 	if second.Code != http.StatusOK || !strings.Contains(second.Body.String(), `"two"`) || second.Header().Get("ETag") == etag {
 		t.Fatalf("changed file not picked up: status=%d etag=%q body=%q", second.Code, second.Header().Get("ETag"), second.Body.String())
 	}
 
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete} {
-		response := request(server, method, "/api/project", []byte(`{}`), nil)
+		response := request(server, method, "/api/project", []byte(`{}`), projectHeaders)
 		if response.Code != http.StatusMethodNotAllowed || response.Header().Get("Allow") != "GET, HEAD" {
 			t.Fatalf("%s: status=%d allow=%q", method, response.Code, response.Header().Get("Allow"))
 		}
@@ -66,7 +107,7 @@ func TestProjectFileServedReadOnlyAndRereadOnChange(t *testing.T) {
 func TestProjectFileMissingAfterStartup(t *testing.T) {
 	server := testAtlasServer(t)
 	server.projectFile = filepath.Join(t.TempDir(), "gone.json")
-	response := request(server, http.MethodGet, "/api/project", nil, nil)
+	response := request(server, http.MethodGet, "/api/project", nil, projectHeaders)
 	if response.Code != http.StatusServiceUnavailable || strings.Contains(response.Body.String(), "gone.json") {
 		t.Fatalf("status=%d body=%q", response.Code, response.Body.String())
 	}

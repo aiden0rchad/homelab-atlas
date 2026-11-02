@@ -259,6 +259,8 @@ func (server *atlasServer) ServeHTTP(writer http.ResponseWriter, request *http.R
 // editor can load a shared project at startup. It is read-only, serves exactly one fixed
 // file chosen by the operator (never a path from the request), and answers 404 when the
 // option is not set. The content is re-read on every request so an updated file is picked up.
+// Requests must pass the host, header and origin checks of the discovery API, but not the API
+// token: the editor has no token when it starts, so ATLAS_API_TOKEN does not protect this file.
 func (server *atlasServer) serveProject(writer http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodGet && request.Method != http.MethodHead {
 		methodNotAllowed(writer, "GET, HEAD")
@@ -266,6 +268,9 @@ func (server *atlasServer) serveProject(writer http.ResponseWriter, request *htt
 	}
 	if server.projectFile == "" {
 		http.NotFound(writer, request)
+		return
+	}
+	if !server.checkRequest(writer, request) {
 		return
 	}
 	file, err := os.Open(server.projectFile)
@@ -373,6 +378,21 @@ func acceptsGzip(header string) bool {
 }
 
 func (server *atlasServer) authorizeAPI(writer http.ResponseWriter, request *http.Request) bool {
+	if !server.checkRequest(writer, request) {
+		return false
+	}
+	if server.apiToken != "" && !constantTokenMatch(request.Header.Get("Authorization"), server.apiToken) {
+		writer.Header().Set("WWW-Authenticate", `Bearer realm="Homelab Atlas"`)
+		http.Error(writer, "authentication required", http.StatusUnauthorized)
+		return false
+	}
+	return true
+}
+
+// checkRequest applies the request checks that do not need a token: no preflight, the
+// X-Atlas-Request header, an allowed Host and a matching Origin. They keep other web pages and
+// DNS-rebinding hosts from reading the API through a visitor's browser.
+func (server *atlasServer) checkRequest(writer http.ResponseWriter, request *http.Request) bool {
 	writer.Header().Set("Cache-Control", "no-store")
 	if request.Method == http.MethodOptions {
 		http.Error(writer, "cross-origin requests are not allowed", http.StatusForbidden)
@@ -398,11 +418,6 @@ func (server *atlasServer) authorizeAPI(writer http.ResponseWriter, request *htt
 			http.Error(writer, "request origin does not match", http.StatusForbidden)
 			return false
 		}
-	}
-	if server.apiToken != "" && !constantTokenMatch(request.Header.Get("Authorization"), server.apiToken) {
-		writer.Header().Set("WWW-Authenticate", `Bearer realm="Homelab Atlas"`)
-		http.Error(writer, "authentication required", http.StatusUnauthorized)
-		return false
 	}
 	return true
 }
