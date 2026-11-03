@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { sampleProject } from '../../app/public/model.js';
-import { adoptSharedProject, BEFORE_SHARED_KEY, fetchSharedProject, SHARED_ETAG_KEY } from '../../app/public/state.js';
+import { adoptSharedProject, BEFORE_SHARED_KEY, fetchSharedProject, restoreBeforeShared, SHARED_ETAG_KEY } from '../../app/public/state.js';
 
 function fakeResponse({ ok = true, etag = '"v1"', body = '' } = {}) {
   return { ok, headers: { get: name => (name.toLowerCase() === 'etag' ? etag : null) }, text: async () => body };
@@ -79,13 +79,15 @@ test('an invalid project is reported and not returned', async () => {
   }
 });
 
-function fakeStorage({ failOn = [] } = {}) {
+function fakeStorage({ failOn = [], items = {} } = {}) {
   const writes = [];
   return {
     writes,
+    getItem(key) { return key in items ? items[key] : null; },
     setItem(key, value) {
       if (failOn.includes(key)) throw new DOMException('quota', 'QuotaExceededError');
       writes.push([key, value]);
+      items[key] = value;
     },
   };
 }
@@ -166,4 +168,98 @@ test('a version marker that cannot be written does not undo a saved project', as
   });
   assert.equal(result.status, 'adopted');
   assert.equal(result.versionMarked, false);
+});
+
+test('the backup holds what is on screen at the moment of the replacement, not the stale stored copy', async () => {
+  const storage = fakeStorage();
+  const result = await adoptSharedProject({
+    shared: sharedFile(), existingRaw: 'STORED (autosave has not caught up)', currentRaw: () => 'ON SCREEN (last edit included)', storage,
+    confirmReplace: () => true,
+    commit: () => true,
+  });
+  assert.equal(result.status, 'adopted');
+  assert.deepEqual(storage.writes[0], [BEFORE_SHARED_KEY, 'ON SCREEN (last edit included)']);
+});
+
+test('a screen snapshot that cannot be taken stops the replacement', async () => {
+  const storage = fakeStorage();
+  let committed = false;
+  const result = await adoptSharedProject({
+    shared: sharedFile(), existingRaw: 'OLD', currentRaw: () => { throw new Error('boom'); }, storage,
+    confirmReplace: () => true,
+    commit: () => { committed = true; return true; },
+  });
+  assert.equal(result.status, 'backup-failed');
+  assert.equal(committed, false);
+});
+
+function storedProject(title) {
+  return JSON.stringify({ tab: 't', data: JSON.stringify({ ...sampleProject(), title }) });
+}
+const parseStored = text => ({ ...JSON.parse(text) });
+
+test('restoring brings the backup back and keeps the current screen as the new backup', async () => {
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: storedProject('Mine before') } });
+  const installed = [];
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => 'SCREEN NOW', parse: parseStored,
+    confirmRestore: () => true,
+    commit: project => { installed.push(project.title); return true; },
+  });
+  assert.equal(result.status, 'restored');
+  assert.deepEqual(installed, ['Mine before']);
+  assert.deepEqual(storage.writes, [[BEFORE_SHARED_KEY, 'SCREEN NOW']]);
+});
+
+test('restoring with no backup says so and changes nothing', async () => {
+  const storage = fakeStorage();
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => 'x', parse: parseStored,
+    confirmRestore: () => { throw new Error('must not ask'); },
+    commit: () => { throw new Error('must not commit'); },
+  });
+  assert.equal(result.status, 'none');
+  assert.deepEqual(storage.writes, []);
+});
+
+test('an unreadable backup is reported and the screen is left alone', async () => {
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: 'not json' } });
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => 'x', parse: parseStored,
+    confirmRestore: () => { throw new Error('must not ask'); },
+    commit: () => { throw new Error('must not commit'); },
+  });
+  assert.equal(result.status, 'unreadable');
+  assert.deepEqual(storage.writes, []);
+});
+
+test('declining the restore changes nothing', async () => {
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: storedProject('Mine before') } });
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => 'x', parse: parseStored,
+    confirmRestore: () => false,
+    commit: () => { throw new Error('must not commit'); },
+  });
+  assert.equal(result.status, 'declined');
+  assert.deepEqual(storage.writes, []);
+});
+
+test('if the screen cannot be saved as the new backup, nothing is restored', async () => {
+  const storage = fakeStorage({ failOn: [BEFORE_SHARED_KEY], items: { [BEFORE_SHARED_KEY]: storedProject('Mine before') } });
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => 'x', parse: parseStored,
+    confirmRestore: () => true,
+    commit: () => { throw new Error('must not commit'); },
+  });
+  assert.equal(result.status, 'backup-failed');
+});
+
+test('a restore that cannot be saved keeps the current project', async () => {
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: storedProject('Mine before') } });
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => 'x', parse: parseStored,
+    confirmRestore: () => true,
+    commit: async () => false,
+  });
+  assert.equal(result.status, 'save-failed');
 });

@@ -44,11 +44,13 @@ export const BEFORE_SHARED_KEY = 'homelab-atlas.before-shared-project';
 // save the new project -> only then remember the file version. A refusal or any failure leaves the
 // current project and the remembered version as they were, so the file is offered again next time.
 // `commit(project)` installs and saves the new project and returns false when saving failed.
-export async function adoptSharedProject({ shared, existingRaw, storage, confirmReplace, commit }) {
+// `currentRaw()` (optional) returns the project as it is on screen at the moment of the backup, after
+// the confirmation: that is what gets backed up, so an edit that autosave has not written yet is kept.
+export async function adoptSharedProject({ shared, existingRaw, currentRaw, storage, confirmReplace, commit }) {
   if (existingRaw) {
     if (!(await confirmReplace())) return { status: 'declined' };
     try {
-      storage.setItem(BEFORE_SHARED_KEY, existingRaw);
+      storage.setItem(BEFORE_SHARED_KEY, currentRaw ? currentRaw() : existingRaw);
     } catch {
       return { status: 'backup-failed' };
     }
@@ -60,6 +62,27 @@ export async function adoptSharedProject({ shared, existingRaw, storage, confirm
   } catch {
     return { status: 'adopted', versionMarked: false };
   }
+}
+
+// Puts the backup made before a shared file replaced the browser project back on screen. What is on
+// screen right now is kept in the backup slot first, so restoring can itself be undone by restoring
+// again. Nothing changes unless the backup is readable, the user confirms and every step succeeds.
+// `parse(text)` turns the stored project text into a project and throws when it is not valid;
+// `commit(project)` installs and saves it and returns false when saving failed.
+export async function restoreBeforeShared({ storage, currentRaw, parse, confirmRestore, commit }) {
+  let backup = null;
+  try { backup = storage.getItem(BEFORE_SHARED_KEY); } catch { return { status: 'unreadable' }; }
+  if (!backup) return { status: 'none' };
+  let restored;
+  try { restored = parse(JSON.parse(backup).data); } catch { return { status: 'unreadable' }; }
+  if (!(await confirmRestore())) return { status: 'declined' };
+  try {
+    storage.setItem(BEFORE_SHARED_KEY, currentRaw());
+  } catch {
+    return { status: 'backup-failed' };
+  }
+  if (!(await commit(restored))) return { status: 'save-failed' };
+  return { status: 'restored' };
 }
 
 export function applyProjectChange(project, mutate) {

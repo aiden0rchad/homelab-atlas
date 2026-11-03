@@ -4,7 +4,7 @@ import {
   renderProject, sampleProject, setManualCard, uid, validateProject,
 } from './model.js';
 import { createExportSnapshot } from './export.js';
-import { adoptSharedProject, applyProjectChange, fetchSharedProject, filterInventory, hasStorageConflict, pngDimensions, SHARED_ETAG_KEY, updateSelection } from './state.js';
+import { adoptSharedProject, applyProjectChange, fetchSharedProject, filterInventory, hasStorageConflict, pngDimensions, restoreBeforeShared, SHARED_ETAG_KEY, updateSelection } from './state.js';
 import { CUSTOM_LOGO_LIMITS, normalizeLogoUpload, verifyCustomLogoDecodes } from './custom-logos.js';
 import {
   applyDiscoveryPlan, captureProjectGuard, discoveryBinding, discoveryBindingLabel, filterDiscoveryFindings, matchDiscoveryLogo,
@@ -216,13 +216,14 @@ async function offerSharedProject({ hadStoredProject, startRevision }) {
     toast(`The shared project file could not be loaded: ${error.message}`, true);
     return;
   }
-  let existingRaw = '';
-  try {
-    if (hadStoredProject || project.revision !== startRevision) existingRaw = localStorage.getItem(STORAGE_KEY) || '';
-  } catch { existingRaw = 'unreadable'; /* the backup step will fail and stop the replacement */ }
+  // What is on screen counts, not what autosave has written so far: an edit made just before the
+  // shared file arrived may not be in the browser storage yet.
+  const onScreen = () => JSON.stringify({ tab: TAB_ID, data: JSON.stringify(project) });
+  const existingRaw = hadStoredProject || project.revision !== startRevision ? onScreen() : '';
   const outcome = await adoptSharedProject({
     shared: result,
     existingRaw,
+    currentRaw: onScreen,
     storage: localStorage,
     confirmReplace: () => window.confirm('A shared project file is available on the server. Replace the diagram in this browser with it?\n\nYour current diagram is kept as a backup in this browser.'),
     commit: shared => {
@@ -2046,6 +2047,36 @@ document.addEventListener('click', event => {
   if (!event.target.closest('#file-menu')) closeFileMenu();
 });
 $('#file-menu a').addEventListener('click', () => closeFileMenu());
+$('#restore-backup').addEventListener('click', async () => {
+  closeFileMenu();
+  const onScreen = () => JSON.stringify({ tab: TAB_ID, data: JSON.stringify(project) });
+  const outcome = await restoreBeforeShared({
+    storage: localStorage,
+    currentRaw: onScreen,
+    parse: parseProject,
+    confirmRestore: () => window.confirm('Restore the browser copy that was kept when the shared project file replaced it?\n\nThe diagram on screen now is kept as the new backup, so you can switch back.'),
+    commit: async restored => {
+      try { await verifyCustomLogoDecodes(restored.customLogos); } catch { return false; }
+      const previous = project;
+      project = restored;
+      project.revision = previous.revision + 1;
+      if (saveProject()) {
+        history = [];
+        future = [];
+        selected = null;
+        render();
+        return true;
+      }
+      project = previous;
+      return false;
+    },
+  });
+  if (outcome.status === 'restored') toast('Restored the previous browser copy. The diagram you had on screen is kept as the backup.');
+  else if (outcome.status === 'none') toast('There is no previous browser copy to restore.');
+  else if (outcome.status === 'unreadable') toast('The backup could not be read, so nothing was changed.', true);
+  else if (outcome.status === 'backup-failed') toast('Nothing was restored: the diagram on screen could not be saved as a backup first.', true);
+  else if (outcome.status === 'save-failed') toast('Nothing was restored: the backup could not be saved in this browser. Your current diagram is unchanged.', true);
+});
 $('#sample').addEventListener('click', () => { closeFileMenu(); if (confirm('Replace this project with the example? You can undo afterward.')) replaceProject(sampleProject()); });
 $('#empty').addEventListener('click', () => { closeFileMenu(); if (confirm('Start empty? You can undo afterward.')) replaceProject(emptyProject()); });
 
