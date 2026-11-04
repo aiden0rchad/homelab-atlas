@@ -2075,7 +2075,9 @@ $('#restore-backup').addEventListener('click', async () => {
   else if (outcome.status === 'none') toast('There is no previous browser copy to restore.');
   else if (outcome.status === 'unreadable') toast('The backup could not be read, so nothing was changed.', true);
   else if (outcome.status === 'backup-failed') toast('Nothing was restored: the diagram on screen could not be saved as a backup first.', true);
-  else if (outcome.status === 'save-failed') toast('Nothing was restored: the backup could not be saved in this browser. Your current diagram is unchanged.', true);
+  else if (outcome.status === 'save-failed') toast(outcome.backupKept === false
+    ? 'Nothing was restored and the previous copy could not be put back as the backup. Your current diagram is unchanged: use Save project to keep it.'
+    : 'Nothing was restored: the restored diagram could not be saved in this browser. Your current diagram and the previous copy are unchanged.', true);
 });
 $('#sample').addEventListener('click', () => { closeFileMenu(); if (confirm('Replace this project with the example? You can undo afterward.')) replaceProject(sampleProject()); });
 $('#empty').addEventListener('click', () => { closeFileMenu(); if (confirm('Start empty? You can undo afterward.')) replaceProject(emptyProject()); });

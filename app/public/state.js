@@ -81,7 +81,14 @@ export async function restoreBeforeShared({ storage, currentRaw, parse, confirmR
   } catch {
     return { status: 'backup-failed' };
   }
-  if (!(await commit(restored))) return { status: 'save-failed' };
+  let saved = false;
+  try { saved = await commit(restored); } catch { saved = false; }
+  if (!saved) {
+    // The restore did not happen, so the original backup must stay exactly as it was.
+    let backupKept = true;
+    try { storage.setItem(BEFORE_SHARED_KEY, backup); } catch { backupKept = false; }
+    return { status: 'save-failed', backupKept };
+  }
   return { status: 'restored' };
 }
 

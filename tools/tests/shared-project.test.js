@@ -263,3 +263,45 @@ test('a restore that cannot be saved keeps the current project', async () => {
   });
   assert.equal(result.status, 'save-failed');
 });
+
+test('a failed restore leaves the original backup exactly as it was', async () => {
+  const original = storedProject('Mine before');
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: original } });
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => 'SCREEN NOW', parse: parseStored,
+    confirmRestore: () => true,
+    commit: async () => false,
+  });
+  assert.equal(result.status, 'save-failed');
+  assert.equal(result.backupKept, true);
+  assert.equal(storage.getItem(BEFORE_SHARED_KEY), original, 'the backup is the one that was there before');
+});
+
+test('a restore that throws while saving also keeps the original backup', async () => {
+  const original = storedProject('Mine before');
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: original } });
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => 'SCREEN NOW', parse: parseStored,
+    confirmRestore: () => true,
+    commit: async () => { throw new Error('quota'); },
+  });
+  assert.equal(result.status, 'save-failed');
+  assert.equal(storage.getItem(BEFORE_SHARED_KEY), original);
+});
+
+test('if the original backup cannot be put back after a failed restore, the result says so', async () => {
+  const original = storedProject('Mine before');
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: original } });
+  let writes = 0;
+  const flaky = {
+    getItem: key => storage.getItem(key),
+    setItem(key, value) { writes += 1; if (writes > 1) throw new DOMException('quota', 'QuotaExceededError'); storage.setItem(key, value); },
+  };
+  const result = await restoreBeforeShared({
+    storage: flaky, currentRaw: () => 'SCREEN NOW', parse: parseStored,
+    confirmRestore: () => true,
+    commit: async () => false,
+  });
+  assert.equal(result.status, 'save-failed');
+  assert.equal(result.backupKept, false);
+});
