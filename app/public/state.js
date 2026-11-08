@@ -1,4 +1,106 @@
-import { validateProject } from './model.js';
+import { parseProject, validateProject } from './model.js';
+
+// Optional shared project: when the server sets ATLAS_PROJECT_FILE, GET /api/project returns it.
+// A 404 (not configured) or any network failure leaves the browser copy untouched. The ETag is the
+// version marker: the file is only loaded when it differs from the one this browser already loaded.
+// The request, including reading the body, is abandoned after `timeoutMs`: a slow or stalled server
+// must never keep the editor waiting, and an abandoned request counts as "unavailable".
+export const SHARED_PROJECT_TIMEOUT_MS = 5000;
+
+export async function fetchSharedProject(fetchFn, seenEtag, { timeoutMs = SHARED_PROJECT_TIMEOUT_MS } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    let response;
+    try {
+      response = await fetchFn('/api/project', { cache: 'no-cache', credentials: 'same-origin', headers: { 'X-Atlas-Request': '1' }, signal: controller.signal });
+    } catch {
+      return { status: 'unavailable' };
+    }
+    if (!response.ok) return { status: 'unavailable' };
+    const etag = response.headers.get('ETag') || '';
+    if (!etag || etag === seenEtag) return { status: 'unchanged', etag };
+    let text;
+    try {
+      text = await response.text();
+    } catch {
+      return { status: 'unavailable' };
+    }
+    try {
+      return { status: 'loaded', etag, project: parseProject(text) };
+    } catch (error) {
+      return { status: 'invalid', etag, error: error.message };
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export const SHARED_ETAG_KEY = 'homelab-atlas.shared-project-etag';
+export const BEFORE_SHARED_KEY = 'homelab-atlas.before-shared-project';
+
+// Replaces the browser project with the shared file, safely. Nothing is touched unless every step
+// before it succeeded: confirm (only when a project already exists) -> back up the old copy ->
+// save the new project -> only then remember the file version. A refusal or any failure leaves the
+// current project and the remembered version as they were, so the file is offered again next time.
+// `commit(project)` installs and saves the new project and returns false when saving failed.
+// `currentRaw()` (optional) returns the project as it is on screen at the moment of the backup, after
+// the confirmation: that is what gets backed up, so an edit that autosave has not written yet is kept.
+export async function adoptSharedProject({ shared, existingRaw, currentRaw, storage, confirmReplace, commit }) {
+  // The backup of an earlier replacement, kept aside so it can be put back if this one fails.
+  let previousBackup = null;
+  if (existingRaw) {
+    if (!(await confirmReplace())) return { status: 'declined' };
+    try {
+      previousBackup = storage.getItem(BEFORE_SHARED_KEY);
+      storage.setItem(BEFORE_SHARED_KEY, currentRaw ? currentRaw() : existingRaw);
+    } catch {
+      return { status: 'backup-failed' };
+    }
+  }
+  if (!commit(shared.project)) {
+    // The replacement did not happen, so the backup that was there before must stay exactly as it was.
+    let backupKept = true;
+    if (previousBackup !== null) {
+      try { storage.setItem(BEFORE_SHARED_KEY, previousBackup); } catch { backupKept = false; }
+    }
+    return { status: 'save-failed', backupKept };
+  }
+  try {
+    storage.setItem(SHARED_ETAG_KEY, shared.etag);
+    return { status: 'adopted', versionMarked: true };
+  } catch {
+    return { status: 'adopted', versionMarked: false };
+  }
+}
+
+// Puts the backup made before a shared file replaced the browser project back on screen. What is on
+// screen right now is kept in the backup slot first, so restoring can itself be undone by restoring
+// again. Nothing changes unless the backup is readable, the user confirms and every step succeeds.
+// `parse(text)` turns the stored project text into a project and throws when it is not valid;
+// `commit(project)` installs and saves it and returns false when saving failed.
+export async function restoreBeforeShared({ storage, currentRaw, parse, confirmRestore, commit }) {
+  let backup = null;
+  try { backup = storage.getItem(BEFORE_SHARED_KEY); } catch { return { status: 'unreadable' }; }
+  if (!backup) return { status: 'none' };
+  let restored;
+  try { restored = parse(JSON.parse(backup).data); } catch { return { status: 'unreadable' }; }
+  if (!(await confirmRestore())) return { status: 'declined' };
+  try {
+    storage.setItem(BEFORE_SHARED_KEY, currentRaw());
+  } catch {
+    return { status: 'backup-failed' };
+  }
+  let saved = false;
+  try { saved = await commit(restored); } catch { saved = false; }
+  if (!saved) {
+    // The restore did not happen, so the original backup must stay exactly as it was.
+    let backupKept = true;
+    try { storage.setItem(BEFORE_SHARED_KEY, backup); } catch { backupKept = false; }
+    return { status: 'save-failed', backupKept };
+  }
+  return { status: 'restored' };
+}
 
 export function applyProjectChange(project, mutate) {
   const candidate = structuredClone(project);
