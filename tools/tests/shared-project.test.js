@@ -159,6 +159,68 @@ test('a failed save keeps the old project and does not mark the version as loade
   assert.ok(!storage.writes.some(([key]) => key === SHARED_ETAG_KEY), 'the version marker is not written');
 });
 
+test('a failed save puts the earlier backup back untouched', async () => {
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: 'EARLIER BACKUP' } });
+  const result = await adoptSharedProject({
+    shared: sharedFile(), existingRaw: 'OLD', storage,
+    confirmReplace: () => true,
+    commit: () => false,
+  });
+  assert.equal(result.status, 'save-failed');
+  assert.equal(result.backupKept, true);
+  assert.equal(storage.getItem(BEFORE_SHARED_KEY), 'EARLIER BACKUP');
+});
+
+test('a failed save reports it when the earlier backup cannot be put back', async () => {
+  const items = { [BEFORE_SHARED_KEY]: 'EARLIER BACKUP' };
+  let writes = 0;
+  const storage = {
+    getItem: key => (key in items ? items[key] : null),
+    setItem(key, value) {
+      writes += 1;
+      if (writes > 1) throw new DOMException('quota', 'QuotaExceededError');
+      items[key] = value;
+    },
+  };
+  const result = await adoptSharedProject({
+    shared: sharedFile(), existingRaw: 'OLD', storage,
+    confirmReplace: () => true,
+    commit: () => false,
+  });
+  assert.equal(result.status, 'save-failed');
+  assert.equal(result.backupKept, false);
+});
+
+test('a failed save with no earlier backup leaves a copy of the current diagram and reports it kept', async () => {
+  const storage = fakeStorage();
+  const result = await adoptSharedProject({
+    shared: sharedFile(), existingRaw: 'OLD', storage,
+    confirmReplace: () => true,
+    commit: () => false,
+  });
+  assert.equal(result.status, 'save-failed');
+  assert.equal(result.backupKept, true);
+  assert.equal(storage.getItem(BEFORE_SHARED_KEY), 'OLD');
+  assert.ok(!storage.writes.some(([key]) => key === SHARED_ETAG_KEY), 'the version marker is not written');
+});
+
+test('a backup slot that cannot be read stops the replacement and changes nothing', async () => {
+  const writes = [];
+  const storage = {
+    getItem() { throw new Error('storage unreadable'); },
+    setItem(key, value) { writes.push([key, value]); },
+  };
+  let committed = false;
+  const result = await adoptSharedProject({
+    shared: sharedFile(), existingRaw: 'OLD', storage,
+    confirmReplace: () => true,
+    commit: () => { committed = true; return true; },
+  });
+  assert.equal(result.status, 'backup-failed');
+  assert.equal(committed, false);
+  assert.deepEqual(writes, []);
+});
+
 test('a version marker that cannot be written does not undo a saved project', async () => {
   const storage = fakeStorage({ failOn: [SHARED_ETAG_KEY] });
   const result = await adoptSharedProject({

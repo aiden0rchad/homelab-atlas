@@ -47,15 +47,25 @@ export const BEFORE_SHARED_KEY = 'homelab-atlas.before-shared-project';
 // `currentRaw()` (optional) returns the project as it is on screen at the moment of the backup, after
 // the confirmation: that is what gets backed up, so an edit that autosave has not written yet is kept.
 export async function adoptSharedProject({ shared, existingRaw, currentRaw, storage, confirmReplace, commit }) {
+  // The backup of an earlier replacement, kept aside so it can be put back if this one fails.
+  let previousBackup = null;
   if (existingRaw) {
     if (!(await confirmReplace())) return { status: 'declined' };
     try {
+      previousBackup = storage.getItem(BEFORE_SHARED_KEY);
       storage.setItem(BEFORE_SHARED_KEY, currentRaw ? currentRaw() : existingRaw);
     } catch {
       return { status: 'backup-failed' };
     }
   }
-  if (!commit(shared.project)) return { status: 'save-failed' };
+  if (!commit(shared.project)) {
+    // The replacement did not happen, so the backup that was there before must stay exactly as it was.
+    let backupKept = true;
+    if (previousBackup !== null) {
+      try { storage.setItem(BEFORE_SHARED_KEY, previousBackup); } catch { backupKept = false; }
+    }
+    return { status: 'save-failed', backupKept };
+  }
   try {
     storage.setItem(SHARED_ETAG_KEY, shared.etag);
     return { status: 'adopted', versionMarked: true };

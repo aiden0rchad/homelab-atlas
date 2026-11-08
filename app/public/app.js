@@ -245,7 +245,9 @@ async function offerSharedProject({ hadStoredProject, startRevision }) {
   } else if (outcome.status === 'backup-failed') {
     toast('The shared project file was not loaded: the backup of your current diagram could not be saved. Nothing was changed.', true);
   } else if (outcome.status === 'save-failed') {
-    toast('The shared project file was not loaded: it could not be saved in this browser. Your current diagram is unchanged.', true);
+    toast(outcome.backupKept === false
+      ? 'The shared project file was not loaded: it could not be saved in this browser. The diagram on screen is unchanged, but the backup from an earlier replacement could not be put back.'
+      : 'The shared project file was not loaded: it could not be saved in this browser. Your current diagram is unchanged.', true);
   }
 }
 
