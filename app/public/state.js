@@ -36,6 +36,23 @@ export async function fetchSharedProject(fetchFn, seenEtag, { timeoutMs = SHARED
   }
 }
 
+// Reads the project kept in the browser. 'empty' = nothing stored, 'loaded' = a usable project and the raw text it
+// came from, 'unreadable' = something is stored but cannot be used (not JSON, not a valid project, a logo that does
+// not decode) while storage itself works, 'unavailable' = storage cannot be read at all. Nothing is written here.
+// `parse(text)` throws on an invalid project and `verify(project)` (may be async) throws on one that must not be used.
+export async function loadStoredProject({ storage, key, parse, verify }) {
+  let raw;
+  try { raw = storage.getItem(key); } catch (error) { return { status: 'unavailable', error }; }
+  if (!raw) return { status: 'empty' };
+  try {
+    const project = parse(JSON.parse(raw).data);
+    await verify(project);
+    return { status: 'loaded', project, raw };
+  } catch (error) {
+    return { status: 'unreadable', error };
+  }
+}
+
 export const SHARED_ETAG_KEY = 'homelab-atlas.shared-project-etag';
 export const BEFORE_SHARED_KEY = 'homelab-atlas.before-shared-project';
 

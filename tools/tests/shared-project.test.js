@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { sampleProject } from '../../app/public/model.js';
-import { adoptSharedProject, BEFORE_SHARED_KEY, fetchSharedProject, restoreBeforeShared, SHARED_ETAG_KEY } from '../../app/public/state.js';
+import { adoptSharedProject, BEFORE_SHARED_KEY, fetchSharedProject, loadStoredProject, restoreBeforeShared, SHARED_ETAG_KEY } from '../../app/public/state.js';
 
 function fakeResponse({ ok = true, etag = '"v1"', body = '' } = {}) {
   return { ok, headers: { get: name => (name.toLowerCase() === 'etag' ? etag : null) }, text: async () => body };
@@ -393,4 +393,43 @@ test('the restore validates first and installs right after the screen is snapsho
   });
   assert.equal(result.status, 'restored');
   assert.deepEqual(order, ['validate', 'confirm', 'snapshot', 'install']);
+});
+
+const parseOk = text => ({ title: JSON.parse(text).title });
+const verifyOk = async () => {};
+
+test('nothing stored is reported as empty and nothing is written', async () => {
+  const storage = fakeStorage();
+  const result = await loadStoredProject({ storage, key: 'k', parse: parseOk, verify: verifyOk });
+  assert.equal(result.status, 'empty');
+  assert.deepEqual(storage.writes, []);
+});
+
+test('a usable stored project is loaded with the raw text it came from', async () => {
+  const raw = JSON.stringify({ tab: 't', data: JSON.stringify({ title: 'Mine' }) });
+  const result = await loadStoredProject({ storage: fakeStorage({ items: { k: raw } }), key: 'k', parse: parseOk, verify: verifyOk });
+  assert.equal(result.status, 'loaded');
+  assert.equal(result.project.title, 'Mine');
+  assert.equal(result.raw, raw);
+});
+
+test('a stored copy that cannot be used is unreadable, not unavailable, and is left alone', async () => {
+  const badJson = 'not json at all';
+  const badProject = JSON.stringify({ tab: 't', data: 'also not json' });
+  const goodButLogoFails = JSON.stringify({ tab: 't', data: JSON.stringify({ title: 'Mine' }) });
+  for (const [raw, verify] of [[badJson, verifyOk], [badProject, verifyOk], [goodButLogoFails, async () => { throw new Error('logo does not decode'); }]]) {
+    const storage = fakeStorage({ items: { k: raw } });
+    const result = await loadStoredProject({ storage, key: 'k', parse: parseOk, verify });
+    assert.equal(result.status, 'unreadable');
+    assert.ok(result.error instanceof Error);
+    assert.deepEqual(storage.writes, []);
+    assert.equal(storage.getItem('k'), raw);
+  }
+});
+
+test('a storage that cannot be read is unavailable', async () => {
+  const storage = { getItem() { throw new DOMException('denied', 'SecurityError'); }, setItem() { throw new Error('no write'); } };
+  const result = await loadStoredProject({ storage, key: 'k', parse: parseOk, verify: verifyOk });
+  assert.equal(result.status, 'unavailable');
+  assert.ok(result.error);
 });
