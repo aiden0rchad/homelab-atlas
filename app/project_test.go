@@ -141,3 +141,21 @@ func TestProjectFileStartupValidation(t *testing.T) {
 		t.Fatalf("valid file rejected: server=%v err=%v", server, err)
 	}
 }
+
+func TestProjectFileRefusalsAndErrorsAreNotCached(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "project.json")
+	if err := os.WriteFile(file, []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := testAtlasServer(t)
+	server.projectFile = file
+	refused := request(server, http.MethodGet, "/api/project", nil, nil)
+	if refused.Code != http.StatusForbidden || refused.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("refused request: status=%d cache=%q", refused.Code, refused.Header().Get("Cache-Control"))
+	}
+	server.projectFile = filepath.Join(t.TempDir(), "gone.json")
+	gone := request(server, http.MethodGet, "/api/project", nil, projectHeaders)
+	if gone.Code != http.StatusServiceUnavailable || gone.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("unavailable file: status=%d cache=%q", gone.Code, gone.Header().Get("Cache-Control"))
+	}
+}
