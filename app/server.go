@@ -285,7 +285,9 @@ func (server *atlasServer) serveProject(writer http.ResponseWriter, request *htt
 		return
 	}
 	sum := sha256.Sum256(data)
-	writer.Header().Set("Cache-Control", "no-cache")
+	// Cache-Control: no-store was set by checkRequest and stays: the response is only for requests that
+	// passed the request checks, so no cache, shared or private, may keep it. The editor compares the
+	// ETag itself.
 	writer.Header().Set("ETag", `"`+hex.EncodeToString(sum[:16])+`"`)
 	writeBody(writer, request, http.StatusOK, "application/json; charset=utf-8", data)
 }

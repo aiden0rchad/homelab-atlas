@@ -74,7 +74,7 @@ func TestProjectFileServedReadOnlyAndRereadOnChange(t *testing.T) {
 	if contentType := first.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "application/json") {
 		t.Fatalf("content type: %q", contentType)
 	}
-	if first.Header().Get("Cache-Control") != "no-cache" || first.Header().Get("Content-Security-Policy") == "" {
+	if first.Header().Get("Cache-Control") != "no-store" || first.Header().Get("Content-Security-Policy") == "" {
 		t.Fatalf("headers: %v", first.Header())
 	}
 	etag := first.Header().Get("ETag")
