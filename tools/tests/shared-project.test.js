@@ -447,3 +447,16 @@ test('keeping an unreadable copy writes only its own key, and a full storage is 
   assert.equal(storage.getItem('k'), 'garbage');
   assert.equal(keepUnreadableCopy(fakeStorage({ failOn: [UNREADABLE_COPY_KEY] }), 'garbage'), false);
 });
+
+test('an edit made while the restore validates or waits for the answer is in the backup', async () => {
+  let screen = 'V0';
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: storedProject('Mine before') } });
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => screen, parse: parseStored,
+    validate: async () => { await Promise.resolve(); screen = 'V1 (edit during the validation)'; },
+    confirmRestore: () => { screen = 'V2 (edit while the confirmation is open)'; return true; },
+    commit: async () => true,
+  });
+  assert.equal(result.status, 'restored');
+  assert.deepEqual(storage.writes[0], [BEFORE_SHARED_KEY, 'V2 (edit while the confirmation is open)']);
+});

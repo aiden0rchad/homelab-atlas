@@ -2054,7 +2054,13 @@ document.addEventListener('click', event => {
   if (!event.target.closest('#file-menu')) closeFileMenu();
 });
 $('#file-menu a').addEventListener('click', () => closeFileMenu());
+let restoreInProgress = false;
 $('#restore-backup').addEventListener('click', async () => {
+  if (restoreInProgress) return;
+  restoreInProgress = true;
+  try { await restoreFromBackup(); } finally { restoreInProgress = false; }
+});
+async function restoreFromBackup() {
   closeFileMenu();
   const onScreen = () => JSON.stringify({ tab: TAB_ID, data: JSON.stringify(project) });
   const outcome = await restoreBeforeShared({
@@ -2085,7 +2091,7 @@ $('#restore-backup').addEventListener('click', async () => {
   else if (outcome.status === 'save-failed') toast(outcome.backupKept === false
     ? 'Nothing was restored and the previous copy could not be put back as the backup. Your current diagram is unchanged: use Save project to keep it.'
     : 'Nothing was restored: the restored diagram could not be saved in this browser. Your current diagram and the previous copy are unchanged.', true);
-});
+}
 $('#sample').addEventListener('click', () => { closeFileMenu(); if (confirm('Replace this project with the example? You can undo afterward.')) replaceProject(sampleProject()); });
 $('#empty').addEventListener('click', () => { closeFileMenu(); if (confirm('Start empty? You can undo afterward.')) replaceProject(emptyProject()); });
 
