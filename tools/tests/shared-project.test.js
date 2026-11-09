@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { sampleProject } from '../../app/public/model.js';
-import { adoptSharedProject, BEFORE_SHARED_KEY, fetchSharedProject, loadStoredProject, restoreBeforeShared, SHARED_ETAG_KEY } from '../../app/public/state.js';
+import { adoptSharedProject, BEFORE_SHARED_KEY, fetchSharedProject, keepUnreadableCopy, loadStoredProject, restoreBeforeShared, SHARED_ETAG_KEY, UNREADABLE_COPY_KEY } from '../../app/public/state.js';
 
 function fakeResponse({ ok = true, etag = '"v1"', body = '' } = {}) {
   return { ok, headers: { get: name => (name.toLowerCase() === 'etag' ? etag : null) }, text: async () => body };
@@ -432,4 +432,18 @@ test('a storage that cannot be read is unavailable', async () => {
   const result = await loadStoredProject({ storage, key: 'k', parse: parseOk, verify: verifyOk });
   assert.equal(result.status, 'unavailable');
   assert.ok(result.error);
+});
+
+test('an unreadable stored copy is returned with its raw text so it can be kept', async () => {
+  const result = await loadStoredProject({ storage: fakeStorage({ items: { k: 'garbage' } }), key: 'k', parse: parseOk, verify: verifyOk });
+  assert.equal(result.status, 'unreadable');
+  assert.equal(result.raw, 'garbage');
+});
+
+test('keeping an unreadable copy writes only its own key, and a full storage is reported without throwing', () => {
+  const storage = fakeStorage({ items: { k: 'garbage' } });
+  assert.equal(keepUnreadableCopy(storage, 'garbage'), true);
+  assert.deepEqual(storage.writes, [[UNREADABLE_COPY_KEY, 'garbage']]);
+  assert.equal(storage.getItem('k'), 'garbage');
+  assert.equal(keepUnreadableCopy(fakeStorage({ failOn: [UNREADABLE_COPY_KEY] }), 'garbage'), false);
 });

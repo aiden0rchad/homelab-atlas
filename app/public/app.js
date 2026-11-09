@@ -4,7 +4,7 @@ import {
   renderProject, sampleProject, setManualCard, uid, validateProject,
 } from './model.js';
 import { createExportSnapshot } from './export.js';
-import { adoptSharedProject, applyProjectChange, fetchSharedProject, filterInventory, loadStoredProject, hasStorageConflict, pngDimensions, restoreBeforeShared, SHARED_ETAG_KEY, updateSelection } from './state.js';
+import { adoptSharedProject, applyProjectChange, fetchSharedProject, filterInventory, keepUnreadableCopy, loadStoredProject, hasStorageConflict, pngDimensions, restoreBeforeShared, SHARED_ETAG_KEY, updateSelection } from './state.js';
 import { CUSTOM_LOGO_LIMITS, normalizeLogoUpload, verifyCustomLogoDecodes } from './custom-logos.js';
 import {
   applyDiscoveryPlan, captureProjectGuard, discoveryBinding, discoveryBindingLabel, filterDiscoveryFindings, matchDiscoveryLogo,
@@ -182,7 +182,8 @@ async function loadProject() {
   if (stored.status === 'unavailable' || stored.status === 'unreadable') {
     project = sampleProject();
     setSaveStatus('Not saved — storage unavailable', true);
-    toast(`Local project could not be loaded: ${stored.error.message}`);
+    const kept = stored.status === 'unreadable' && keepUnreadableCopy(localStorage, stored.raw);
+    toast(`Local project could not be loaded: ${stored.error.message}${kept ? ' The unreadable copy was kept in this browser under its own key, so it can still be recovered by hand.' : ''}`);
     render();
     // An unreadable copy with working storage still gets the shared file offered, as a replacement, so the user is
     // asked first. When storage itself cannot be read the shared file is not offered, as before.

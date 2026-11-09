@@ -49,12 +49,20 @@ export async function loadStoredProject({ storage, key, parse, verify }) {
     await verify(project);
     return { status: 'loaded', project, raw };
   } catch (error) {
-    return { status: 'unreadable', error };
+    return { status: 'unreadable', error, raw };
   }
 }
 
 export const SHARED_ETAG_KEY = 'homelab-atlas.shared-project-etag';
 export const BEFORE_SHARED_KEY = 'homelab-atlas.before-shared-project';
+export const UNREADABLE_COPY_KEY = 'homelab-atlas.unreadable-local-copy';
+
+// Keeps the text of a stored project that could not be used, under its own key, before anything overwrites it:
+// it may still be recoverable by hand or by another version of the editor. Returns false when it cannot be kept
+// (storage full); never throws.
+export function keepUnreadableCopy(storage, raw) {
+  try { storage.setItem(UNREADABLE_COPY_KEY, raw); return true; } catch { return false; }
+}
 
 // Replaces the browser project with the shared file, safely. Nothing is touched unless every step
 // before it succeeded: confirm (only when a project already exists) -> back up the old copy ->
