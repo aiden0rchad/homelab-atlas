@@ -78,13 +78,20 @@ export async function adoptSharedProject({ shared, existingRaw, currentRaw, stor
 // screen right now is kept in the backup slot first, so restoring can itself be undone by restoring
 // again. Nothing changes unless the backup is readable, the user confirms and every step succeeds.
 // `parse(text)` turns the stored project text into a project and throws when it is not valid;
+// `validate(project)` (optional, may be async) throws when the restored project must not be installed;
 // `commit(project)` installs and saves it and returns false when saving failed.
-export async function restoreBeforeShared({ storage, currentRaw, parse, confirmRestore, commit }) {
+export async function restoreBeforeShared({ storage, currentRaw, parse, validate, confirmRestore, commit }) {
   let backup = null;
   try { backup = storage.getItem(BEFORE_SHARED_KEY); } catch { return { status: 'unreadable' }; }
   if (!backup) return { status: 'none' };
   let restored;
   try { restored = parse(JSON.parse(backup).data); } catch { return { status: 'unreadable' }; }
+  // Anything slow that can reject the restored project (decoding its logos) runs here, before the
+  // confirmation and before the screen is snapshotted. After the snapshot nothing may wait before the
+  // replacement is installed, or an edit made in between is neither in the backup nor in the new project.
+  if (validate) {
+    try { await validate(restored); } catch { return { status: 'unreadable' }; }
+  }
   if (!(await confirmRestore())) return { status: 'declined' };
   try {
     storage.setItem(BEFORE_SHARED_KEY, currentRaw());

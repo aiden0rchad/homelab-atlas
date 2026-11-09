@@ -367,3 +367,30 @@ test('if the original backup cannot be put back after a failed restore, the resu
   assert.equal(result.status, 'save-failed');
   assert.equal(result.backupKept, false);
 });
+
+test('a restored project that fails validation stops the restore before asking and before touching the backup', async () => {
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: storedProject('Mine before') } });
+  let committed = false;
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => 'ON SCREEN', parse: parseStored,
+    validate: async () => { throw new Error('logo does not decode'); },
+    confirmRestore: () => { throw new Error('must not ask'); },
+    commit: async () => { committed = true; return true; },
+  });
+  assert.equal(result.status, 'unreadable');
+  assert.equal(committed, false);
+  assert.deepEqual(storage.writes, []);
+});
+
+test('the restore validates first and installs right after the screen is snapshotted', async () => {
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: storedProject('Mine before') } });
+  const order = [];
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => { order.push('snapshot'); return 'ON SCREEN'; }, parse: parseStored,
+    validate: async () => { order.push('validate'); },
+    confirmRestore: () => { order.push('confirm'); return true; },
+    commit: async () => { order.push('install'); return true; },
+  });
+  assert.equal(result.status, 'restored');
+  assert.deepEqual(order, ['validate', 'confirm', 'snapshot', 'install']);
+});

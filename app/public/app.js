@@ -2056,9 +2056,9 @@ $('#restore-backup').addEventListener('click', async () => {
     storage: localStorage,
     currentRaw: onScreen,
     parse: parseProject,
+    validate: restored => verifyCustomLogoDecodes(restored.customLogos),
     confirmRestore: () => window.confirm('Restore the browser copy that was kept when the shared project file replaced it?\n\nThe diagram on screen now is kept as the new backup, so you can switch back.'),
     commit: async restored => {
-      try { await verifyCustomLogoDecodes(restored.customLogos); } catch { return false; }
       const previous = project;
       project = restored;
       project.revision = previous.revision + 1;
