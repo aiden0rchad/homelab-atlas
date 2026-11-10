@@ -183,7 +183,7 @@ async function loadProject() {
     project = sampleProject();
     setSaveStatus('Not saved — storage unavailable', true);
     const kept = stored.status === 'unreadable' && keepUnreadableCopy(localStorage, stored.raw);
-    toast(`Local project could not be loaded: ${stored.error.message}${kept ? ' The unreadable copy was kept in this browser under its own key, so it can still be recovered by hand.' : ''}`);
+    toast(`Local project could not be loaded: ${stored.error.message}${kept ? ' — the unreadable copy was kept in this browser under its own key, so it can still be recovered by hand.' : ''}`);
     render();
     // An unreadable copy with working storage still gets the shared file offered, as a replacement, so the user is
     // asked first. When storage itself cannot be read the shared file is not offered, as before.
