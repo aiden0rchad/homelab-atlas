@@ -74,7 +74,7 @@ func TestProjectFileServedReadOnlyAndRereadOnChange(t *testing.T) {
 	if contentType := first.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "application/json") {
 		t.Fatalf("content type: %q", contentType)
 	}
-	if first.Header().Get("Cache-Control") != "no-cache" || first.Header().Get("Content-Security-Policy") == "" {
+	if first.Header().Get("Cache-Control") != "no-store" || first.Header().Get("Content-Security-Policy") == "" {
 		t.Fatalf("headers: %v", first.Header())
 	}
 	etag := first.Header().Get("ETag")
@@ -139,5 +139,23 @@ func TestProjectFileStartupValidation(t *testing.T) {
 	server, err := newAtlasServer(public)
 	if err != nil || server.projectFile != valid {
 		t.Fatalf("valid file rejected: server=%v err=%v", server, err)
+	}
+}
+
+func TestProjectFileRefusalsAndErrorsAreNotCached(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "project.json")
+	if err := os.WriteFile(file, []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := testAtlasServer(t)
+	server.projectFile = file
+	refused := request(server, http.MethodGet, "/api/project", nil, nil)
+	if refused.Code != http.StatusForbidden || refused.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("refused request: status=%d cache=%q", refused.Code, refused.Header().Get("Cache-Control"))
+	}
+	server.projectFile = filepath.Join(t.TempDir(), "gone.json")
+	gone := request(server, http.MethodGet, "/api/project", nil, projectHeaders)
+	if gone.Code != http.StatusServiceUnavailable || gone.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("unavailable file: status=%d cache=%q", gone.Code, gone.Header().Get("Cache-Control"))
 	}
 }

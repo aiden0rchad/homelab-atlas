@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { sampleProject } from '../../app/public/model.js';
-import { adoptSharedProject, BEFORE_SHARED_KEY, fetchSharedProject, restoreBeforeShared, SHARED_ETAG_KEY } from '../../app/public/state.js';
+import { adoptSharedProject, BEFORE_SHARED_KEY, fetchSharedProject, keepUnreadableCopy, loadStoredProject, restoreBeforeShared, SHARED_ETAG_KEY, UNREADABLE_COPY_KEY } from '../../app/public/state.js';
 
 function fakeResponse({ ok = true, etag = '"v1"', body = '' } = {}) {
   return { ok, headers: { get: name => (name.toLowerCase() === 'etag' ? etag : null) }, text: async () => body };
@@ -366,4 +366,97 @@ test('if the original backup cannot be put back after a failed restore, the resu
   });
   assert.equal(result.status, 'save-failed');
   assert.equal(result.backupKept, false);
+});
+
+test('a restored project that fails validation stops the restore before asking and before touching the backup', async () => {
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: storedProject('Mine before') } });
+  let committed = false;
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => 'ON SCREEN', parse: parseStored,
+    validate: async () => { throw new Error('logo does not decode'); },
+    confirmRestore: () => { throw new Error('must not ask'); },
+    commit: async () => { committed = true; return true; },
+  });
+  assert.equal(result.status, 'unreadable');
+  assert.equal(committed, false);
+  assert.deepEqual(storage.writes, []);
+});
+
+test('the restore validates first and installs right after the screen is snapshotted', async () => {
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: storedProject('Mine before') } });
+  const order = [];
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => { order.push('snapshot'); return 'ON SCREEN'; }, parse: parseStored,
+    validate: async () => { order.push('validate'); },
+    confirmRestore: () => { order.push('confirm'); return true; },
+    commit: async () => { order.push('install'); return true; },
+  });
+  assert.equal(result.status, 'restored');
+  assert.deepEqual(order, ['validate', 'confirm', 'snapshot', 'install']);
+});
+
+const parseOk = text => ({ title: JSON.parse(text).title });
+const verifyOk = async () => {};
+
+test('nothing stored is reported as empty and nothing is written', async () => {
+  const storage = fakeStorage();
+  const result = await loadStoredProject({ storage, key: 'k', parse: parseOk, verify: verifyOk });
+  assert.equal(result.status, 'empty');
+  assert.deepEqual(storage.writes, []);
+});
+
+test('a usable stored project is loaded with the raw text it came from', async () => {
+  const raw = JSON.stringify({ tab: 't', data: JSON.stringify({ title: 'Mine' }) });
+  const result = await loadStoredProject({ storage: fakeStorage({ items: { k: raw } }), key: 'k', parse: parseOk, verify: verifyOk });
+  assert.equal(result.status, 'loaded');
+  assert.equal(result.project.title, 'Mine');
+  assert.equal(result.raw, raw);
+});
+
+test('a stored copy that cannot be used is unreadable, not unavailable, and is left alone', async () => {
+  const badJson = 'not json at all';
+  const badProject = JSON.stringify({ tab: 't', data: 'also not json' });
+  const goodButLogoFails = JSON.stringify({ tab: 't', data: JSON.stringify({ title: 'Mine' }) });
+  for (const [raw, verify] of [[badJson, verifyOk], [badProject, verifyOk], [goodButLogoFails, async () => { throw new Error('logo does not decode'); }]]) {
+    const storage = fakeStorage({ items: { k: raw } });
+    const result = await loadStoredProject({ storage, key: 'k', parse: parseOk, verify });
+    assert.equal(result.status, 'unreadable');
+    assert.ok(result.error instanceof Error);
+    assert.deepEqual(storage.writes, []);
+    assert.equal(storage.getItem('k'), raw);
+  }
+});
+
+test('a storage that cannot be read is unavailable', async () => {
+  const storage = { getItem() { throw new DOMException('denied', 'SecurityError'); }, setItem() { throw new Error('no write'); } };
+  const result = await loadStoredProject({ storage, key: 'k', parse: parseOk, verify: verifyOk });
+  assert.equal(result.status, 'unavailable');
+  assert.ok(result.error);
+});
+
+test('an unreadable stored copy is returned with its raw text so it can be kept', async () => {
+  const result = await loadStoredProject({ storage: fakeStorage({ items: { k: 'garbage' } }), key: 'k', parse: parseOk, verify: verifyOk });
+  assert.equal(result.status, 'unreadable');
+  assert.equal(result.raw, 'garbage');
+});
+
+test('keeping an unreadable copy writes only its own key, and a full storage is reported without throwing', () => {
+  const storage = fakeStorage({ items: { k: 'garbage' } });
+  assert.equal(keepUnreadableCopy(storage, 'garbage'), true);
+  assert.deepEqual(storage.writes, [[UNREADABLE_COPY_KEY, 'garbage']]);
+  assert.equal(storage.getItem('k'), 'garbage');
+  assert.equal(keepUnreadableCopy(fakeStorage({ failOn: [UNREADABLE_COPY_KEY] }), 'garbage'), false);
+});
+
+test('an edit made while the restore validates or waits for the answer is in the backup', async () => {
+  let screen = 'V0';
+  const storage = fakeStorage({ items: { [BEFORE_SHARED_KEY]: storedProject('Mine before') } });
+  const result = await restoreBeforeShared({
+    storage, currentRaw: () => screen, parse: parseStored,
+    validate: async () => { await Promise.resolve(); screen = 'V1 (edit during the validation)'; },
+    confirmRestore: () => { screen = 'V2 (edit while the confirmation is open)'; return true; },
+    commit: async () => true,
+  });
+  assert.equal(result.status, 'restored');
+  assert.deepEqual(storage.writes[0], [BEFORE_SHARED_KEY, 'V2 (edit while the confirmation is open)']);
 });

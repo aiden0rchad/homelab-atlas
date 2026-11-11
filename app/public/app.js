@@ -4,7 +4,7 @@ import {
   renderProject, sampleProject, setManualCard, uid, validateProject,
 } from './model.js';
 import { createExportSnapshot } from './export.js';
-import { adoptSharedProject, applyProjectChange, fetchSharedProject, filterInventory, hasStorageConflict, pngDimensions, restoreBeforeShared, SHARED_ETAG_KEY, updateSelection } from './state.js';
+import { adoptSharedProject, applyProjectChange, fetchSharedProject, filterInventory, keepUnreadableCopy, loadStoredProject, hasStorageConflict, pngDimensions, restoreBeforeShared, SHARED_ETAG_KEY, updateSelection } from './state.js';
 import { CUSTOM_LOGO_LIMITS, normalizeLogoUpload, verifyCustomLogoDecodes } from './custom-logos.js';
 import {
   applyDiscoveryPlan, captureProjectGuard, discoveryBinding, discoveryBindingLabel, filterDiscoveryFindings, matchDiscoveryLogo,
@@ -173,24 +173,29 @@ function saveProject(force = false) {
 }
 
 async function loadProject() {
-  let fresh = false;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const loaded = parseProject(JSON.parse(raw).data);
-      await verifyCustomLogoDecodes(loaded.customLogos);
-      project = loaded;
-      lastStored = raw;
-    } else {
-      project = sampleProject();
-      fresh = true;
-    }
-  } catch (error) {
+  const stored = await loadStoredProject({
+    storage: localStorage,
+    key: STORAGE_KEY,
+    parse: parseProject,
+    verify: loaded => verifyCustomLogoDecodes(loaded.customLogos),
+  });
+  if (stored.status === 'unavailable' || stored.status === 'unreadable') {
     project = sampleProject();
     setSaveStatus('Not saved — storage unavailable', true);
-    toast(`Local project could not be loaded: ${error.message}`);
+    const kept = stored.status === 'unreadable' && keepUnreadableCopy(localStorage, stored.raw);
+    toast(`Local project could not be loaded: ${stored.error.message}${kept ? ' — the unreadable copy was kept in this browser under its own key, so it can still be recovered by hand.' : ''}`);
     render();
+    // An unreadable copy with working storage still gets the shared file offered, as a replacement, so the user is
+    // asked first. When storage itself cannot be read the shared file is not offered, as before.
+    if (stored.status === 'unreadable') offerSharedProject({ hadStoredProject: true, startRevision: project.revision });
     return;
+  }
+  const fresh = stored.status === 'empty';
+  if (fresh) {
+    project = sampleProject();
+  } else {
+    project = stored.project;
+    lastStored = stored.raw;
   }
   render();
   if (fresh) saveProject(); else setSaveStatus('Saved locally');
@@ -2049,16 +2054,22 @@ document.addEventListener('click', event => {
   if (!event.target.closest('#file-menu')) closeFileMenu();
 });
 $('#file-menu a').addEventListener('click', () => closeFileMenu());
+let restoreInProgress = false;
 $('#restore-backup').addEventListener('click', async () => {
+  if (restoreInProgress) return;
+  restoreInProgress = true;
+  try { await restoreFromBackup(); } finally { restoreInProgress = false; }
+});
+async function restoreFromBackup() {
   closeFileMenu();
   const onScreen = () => JSON.stringify({ tab: TAB_ID, data: JSON.stringify(project) });
   const outcome = await restoreBeforeShared({
     storage: localStorage,
     currentRaw: onScreen,
     parse: parseProject,
+    validate: restored => verifyCustomLogoDecodes(restored.customLogos),
     confirmRestore: () => window.confirm('Restore the browser copy that was kept when the shared project file replaced it?\n\nThe diagram on screen now is kept as the new backup, so you can switch back.'),
     commit: async restored => {
-      try { await verifyCustomLogoDecodes(restored.customLogos); } catch { return false; }
       const previous = project;
       project = restored;
       project.revision = previous.revision + 1;
@@ -2080,7 +2091,7 @@ $('#restore-backup').addEventListener('click', async () => {
   else if (outcome.status === 'save-failed') toast(outcome.backupKept === false
     ? 'Nothing was restored and the previous copy could not be put back as the backup. Your current diagram is unchanged: use Save project to keep it.'
     : 'Nothing was restored: the restored diagram could not be saved in this browser. Your current diagram and the previous copy are unchanged.', true);
-});
+}
 $('#sample').addEventListener('click', () => { closeFileMenu(); if (confirm('Replace this project with the example? You can undo afterward.')) replaceProject(sampleProject()); });
 $('#empty').addEventListener('click', () => { closeFileMenu(); if (confirm('Start empty? You can undo afterward.')) replaceProject(emptyProject()); });
 
