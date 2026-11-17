@@ -35,6 +35,10 @@ Choose another install path: [Unraid](https://aiden0rchad.github.io/homelab-atla
 
 For access from another computer and updates, see the [setup guide](https://aiden0rchad.github.io/homelab-atlas/getting-started). The [release page](https://github.com/aiden0rchad/homelab-atlas/releases/latest) has the source ZIP, release Compose file, and checksums. The root `compose.yaml` builds from source and requires the complete repository; stack managers should use the released `compose.release.yaml`.
 
+## One-Click Deploy
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/Homelab%20Atlas/)
+
 ## Making a diagram
 
 Open **File** and start with **Load example** to see how it works, or **Start empty** for your own lab. Add devices, fill in whatever hardware details you want to show, and group the services running on each one. Visual logo pickers are searchable and work offline. Click a device icon or an existing service logo to replace it.
