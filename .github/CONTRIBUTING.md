@@ -4,7 +4,7 @@ Thanks for helping improve Homelab Atlas.
 
 ## Before opening an issue
 
-- Search existing issues and the [documentation](https://author-shin.github.io/homelab-atlas/).
+- Search existing issues and the [documentation](https://authorshin.github.io/homelab-atlas/).
 - Use the bug template for reproducible failures and the feature template for a concrete use case.
 - Do not attach personal lab exports, credentials, private hostnames, domains, or addresses. Reduce a project to fictional data first.
 - Report security problems privately as described in [SECURITY.md](SECURITY.md).

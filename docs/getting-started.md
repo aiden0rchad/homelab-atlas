@@ -26,7 +26,7 @@ Open `http://localhost:8080`. Verify the server if needed:
 curl http://localhost:8080/healthz
 ```
 
-A healthy response is `ok`. By default, the Compose file pulls `ghcr.io/author-shin/homelab-atlas:0.12.0`. It only listens on the machine running Docker and keeps the container read-only, drops its capabilities, and enables the no-new-privileges setting.
+A healthy response is `ok`. By default, the Compose file pulls `ghcr.io/authorshin/homelab-atlas:0.12.0`. It only listens on the machine running Docker and keeps the container read-only, drops its capabilities, and enables the no-new-privileges setting.
 
 ## Pin and update versions
 

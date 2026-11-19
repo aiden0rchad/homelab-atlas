@@ -6,12 +6,12 @@
 A self-hosted app for making homelab diagrams.
 
 [![CI](https://github.com/AuthorShin/homelab-atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/AuthorShin/homelab-atlas/actions/workflows/ci.yml)
-[![Docs](https://github.com/AuthorShin/homelab-atlas/actions/workflows/docs.yml/badge.svg)](https://author-shin.github.io/homelab-atlas/)
+[![Docs](https://github.com/AuthorShin/homelab-atlas/actions/workflows/docs.yml/badge.svg)](https://authorshin.github.io/homelab-atlas/)
 [![Release](https://img.shields.io/github/v/release/AuthorShin/homelab-atlas?display_name=tag&sort=semver)](https://github.com/AuthorShin/homelab-atlas/releases/latest)
 [![Package](https://img.shields.io/badge/GHCR-homelab--atlas-55d6c9?logo=github)](https://github.com/users/AuthorShin/packages/container/package/homelab-atlas)
 [![License: MIT](https://img.shields.io/badge/license-MIT-55d6c9.svg)](LICENSE)
 
-[Documentation](https://author-shin.github.io/homelab-atlas/) · [FAQ](https://author-shin.github.io/homelab-atlas/faq) · [Releases](https://github.com/AuthorShin/homelab-atlas/releases) · [Docker images](https://github.com/users/AuthorShin/packages/container/package/homelab-atlas)
+[Documentation](https://authorshin.github.io/homelab-atlas/) · [FAQ](https://authorshin.github.io/homelab-atlas/faq) · [Releases](https://github.com/AuthorShin/homelab-atlas/releases) · [Docker images](https://github.com/users/AuthorShin/packages/container/package/homelab-atlas)
 </div>
 
 I posted a diagram of my homelab on Reddit and someone asked how they could make one too. That's where this project started. I wanted a way to add machines and apps, get the logos in, and update the diagram as things changed.
@@ -31,7 +31,7 @@ docker compose -f compose.release.yaml up -d
 
 Open `http://localhost:8080`. This uses the `0.12.0` image and only listens on the machine running Docker. Images are available for Linux AMD64 and ARM64.
 
-For access from another computer, updates, or running without Docker, see the [setup guide](https://author-shin.github.io/homelab-atlas/getting-started). The [release page](https://github.com/AuthorShin/homelab-atlas/releases/latest) has the portable ZIP, Compose file, and checksums.
+For access from another computer, updates, or running without Docker, see the [setup guide](https://authorshin.github.io/homelab-atlas/getting-started). The [release page](https://github.com/AuthorShin/homelab-atlas/releases/latest) has the portable ZIP, Compose file, and checksums.
 
 ## Making a diagram
 
@@ -41,7 +41,7 @@ You can upload PNG, JPG, WebP, or SVG logos up to 2 MB, preview their contrast b
 
 Give a service an optional `http://` or `https://` link in its **Apps** tab. Open **Dashboard** in the top bar for a read-only view of the same project where linked service tiles open in a new tab. Links are dashboard-only and never appear in SVG or PNG exports. Use **File → Save as browser default** to choose the project that opens when this browser has no autosaved project, and **Clear browser default** to remove it.
 
-The [editor guide](https://author-shin.github.io/homelab-atlas/editor) covers the controls, the [dashboard guide](https://author-shin.github.io/homelab-atlas/dashboard) explains links and the browser default, and the [networking guide](https://author-shin.github.io/homelab-atlas/networking) explains connections and VLANs.
+The [editor guide](https://authorshin.github.io/homelab-atlas/editor) covers the controls, the [dashboard guide](https://authorshin.github.io/homelab-atlas/dashboard) explains links and the browser default, and the [networking guide](https://authorshin.github.io/homelab-atlas/networking) explains connections and VLANs.
 
 ## A few things to know
 
@@ -52,13 +52,13 @@ The [editor guide](https://author-shin.github.io/homelab-atlas/editor) covers th
 - **There's no login system.** Keep it on localhost or a trusted LAN. Don't expose it directly to the internet.
 - **Export filtering is intentionally narrow.** It hides addresses, URLs, emails, and terms you list from SVG and PNG images. It does not change saved JSON or text baked into uploaded logos.
 
-More detail is in the [backup guide](https://author-shin.github.io/homelab-atlas/sharing), [privacy page](https://author-shin.github.io/homelab-atlas/privacy), and [troubleshooting guide](https://author-shin.github.io/homelab-atlas/troubleshooting).
+More detail is in the [backup guide](https://authorshin.github.io/homelab-atlas/sharing), [privacy page](https://authorshin.github.io/homelab-atlas/privacy), and [troubleshooting guide](https://authorshin.github.io/homelab-atlas/troubleshooting).
 
 ## Bugs and contributions
 
 This is still an early version. If something breaks or a layout looks wrong, [open an issue](https://github.com/AuthorShin/homelab-atlas/issues) with a screenshot and steps to reproduce it. Remove private details from anything you attach.
 
-PRs are welcome. [CONTRIBUTING.md](.github/CONTRIBUTING.md) has the checks to run, and the [development docs](https://author-shin.github.io/homelab-atlas/development) explain the code and logo catalog. Please report security problems privately using [SECURITY.md](.github/SECURITY.md).
+PRs are welcome. [CONTRIBUTING.md](.github/CONTRIBUTING.md) has the checks to run, and the [development docs](https://authorshin.github.io/homelab-atlas/development) explain the code and logo catalog. Please report security problems privately using [SECURITY.md](.github/SECURITY.md).
 
 If you'd like to support the project, you can [buy me a coffee](https://www.buymeacoffee.com/aiden0rchad).
 

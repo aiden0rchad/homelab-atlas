@@ -9,7 +9,7 @@ export default defineConfig({
   appearance: 'dark',
   cleanUrls: true,
   lastUpdated: true,
-  sitemap: { hostname: 'https://author-shin.github.io/homelab-atlas/' },
+  sitemap: { hostname: 'https://authorshin.github.io/homelab-atlas/' },
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/homelab-atlas/atlas-mark.svg' }],
     ['meta', { name: 'theme-color', content: '#0b1117' }],

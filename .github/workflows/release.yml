@@ -162,10 +162,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/author-shin/homelab-atlas:${{ needs.validate.outputs.version }}
-            ghcr.io/author-shin/homelab-atlas:v${{ needs.validate.outputs.version }}
-            ghcr.io/author-shin/homelab-atlas:${{ needs.validate.outputs.minor }}
-            ghcr.io/author-shin/homelab-atlas:latest
+            ghcr.io/authorshin/homelab-atlas:${{ needs.validate.outputs.version }}
+            ghcr.io/authorshin/homelab-atlas:v${{ needs.validate.outputs.version }}
+            ghcr.io/authorshin/homelab-atlas:${{ needs.validate.outputs.minor }}
+            ghcr.io/authorshin/homelab-atlas:latest
           labels: |
             org.opencontainers.image.source=https://github.com/AuthorShin/homelab-atlas
             org.opencontainers.image.title=Homelab Atlas
@@ -204,7 +204,7 @@ jobs:
           EMPTY_DOCKER_CONFIG="$(mktemp -d)"
           trap 'rm -rf "$EMPTY_DOCKER_CONFIG"' EXIT
           export DOCKER_CONFIG="$EMPTY_DOCKER_CONFIG"
-          IMAGE="ghcr.io/author-shin/homelab-atlas:$VERSION"
+          IMAGE="ghcr.io/authorshin/homelab-atlas:$VERSION"
           if ! docker buildx imagetools inspect "$IMAGE" > image-inspect.txt; then
             echo "Anonymous image access failed. Make the GHCR package public, then rerun only this failed release job." >&2
             exit 1

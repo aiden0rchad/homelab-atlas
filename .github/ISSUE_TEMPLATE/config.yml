@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: Documentation
-    url: https://author-shin.github.io/homelab-atlas/
+    url: https://authorshin.github.io/homelab-atlas/
     about: Read setup, editor, sharing, privacy, and troubleshooting guides.
   - name: Private security report
     url: https://github.com/AuthorShin/homelab-atlas/security/advisories/new

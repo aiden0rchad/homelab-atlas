@@ -8,7 +8,7 @@ Release notes for earlier versions are kept for reference. They describe the ups
 
 | Asset | Platforms | Purpose |
 |---|---|---|
-| `ghcr.io/author-shin/homelab-atlas:0.12.0` | Linux AMD64, ARM64 | Published editor and dashboard image |
+| `ghcr.io/authorshin/homelab-atlas:0.12.0` | Linux AMD64, ARM64 | Published editor and dashboard image |
 | `homelab-atlas-0.12.0.zip` | Go 1.26+ and a current browser | App source, deployment files, and documentation |
 | `compose.release.yaml` | Docker Compose v2 | Runs the released image with the standard safety settings |
 | `SHA256SUMS` | Linux/macOS | Integrity checks for the ZIP and Compose file |
