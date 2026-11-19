@@ -25,7 +25,7 @@ jobs:
       - run: |
           for i in {1..20}; do
             if curl --fail http://127.0.0.1:8080/healthz; then
-              test "$(curl --fail --silent -H 'X-Atlas-Request: 1' http://127.0.0.1:8080/api/discovery/sources)" = "[]"
+              curl --fail --silent --show-error http://127.0.0.1:8080/dashboard >/dev/null
               exit
             fi
             sleep 1

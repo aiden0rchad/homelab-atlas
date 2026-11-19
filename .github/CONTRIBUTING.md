@@ -33,4 +33,4 @@ npm run check:icons
 
 Generated `app/public/icon-data.js` must match the reviewed SVG files. Do not commit `docs/.vitepress/cache/` or `docs/.vitepress/dist/`.
 
-The runtime uses the Go standard library only. Discovery changes must keep the editor process away from the Docker socket, keep collector requests read-only and bounded, and use fictional test fixtures.
+The runtime uses the Go standard library only. Changes must not add a server-side project store, background network requests, or device discovery. Keep browser storage, service links, and project imports covered by tests.

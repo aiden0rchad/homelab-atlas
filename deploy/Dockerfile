@@ -10,8 +10,7 @@ LABEL org.opencontainers.image.source="https://github.com/aiden0rchad/homelab-at
       org.opencontainers.image.title="Homelab Atlas" \
       org.opencontainers.image.description="Local-first visual editor for clear homelab diagrams" \
       org.opencontainers.image.licenses="MIT"
-ARG ATLAS_WITH_NMAP=false
-RUN case "$ATLAS_WITH_NMAP" in false) apk add --no-cache ca-certificates ;; true) apk add --no-cache ca-certificates nmap nmap-nselibs nmap-scripts ;; *) echo "ATLAS_WITH_NMAP must be true or false" >&2; exit 1 ;; esac
+RUN apk add --no-cache ca-certificates
 COPY --from=build /out/atlas /usr/local/bin/atlas
 COPY LICENSE docs/THIRD_PARTY_NOTICES.md /usr/share/licenses/homelab-atlas/
 USER 10001:10001

@@ -6,7 +6,7 @@ titleTemplate: false
 hero:
   name: Homelab Atlas
   text: Make a diagram of your homelab.
-  tagline: Add your machines and apps, review Docker or Nmap findings, and export a PNG or SVG. Atlas saves the project in your browser.
+  tagline: Add your machines and apps, link the services you use, and export a PNG or SVG. Atlas saves the project in your browser.
   image:
     src: /atlas-mark.svg
     alt: Homelab Atlas mark with three stepped teal strokes
@@ -18,6 +18,9 @@ hero:
       text: Explore the editor
       link: /editor
     - theme: alt
+      text: Dashboard
+      link: /dashboard
+    - theme: alt
       text: GitHub
       link: https://github.com/aiden0rchad/homelab-atlas
 
@@ -25,11 +28,11 @@ features:
   - title: Add your gear
     details: Add servers, network devices, hardware notes, service groups, VLAN labels, and connections.
   - title: Run it at home
-    details: Atlas runs on your own machine. There are no accounts, telemetry, AI calls, automatic scans, or background polling.
-  - title: Review discovery
-    details: Run an explicit bounded Nmap scan, import Nmap XML, or use an optional Docker collector. Nothing is selected or added automatically.
+    details: Atlas runs on your own machine. There are no accounts, telemetry, AI calls, or background network requests.
+  - title: Open your services
+    details: Add optional http:// or https:// links to services, then use the dashboard for a private tile view with clickable links.
   - title: Save and share
-    details: Save JSON when you want an editable backup, or export an SVG or PNG when you want an image.
+    details: Keep a browser default project, save JSON for an editable backup, or export an SVG or PNG when you want an image.
 ---
 
 ## See the editor
@@ -56,7 +59,7 @@ I posted a diagram of my homelab on Reddit and someone asked how they could make
   <div><strong>5 · Save</strong>Back up JSON; export SVG or PNG.</div>
 </div>
 
-Atlas only knows what you add or import. Start with [installation and safe deployment](/getting-started), then use the [editor guide](/editor) when you want more detail on the controls.
+Atlas only knows what you add or load from a project file. Start with [installation and safe deployment](/getting-started), then use the [editor guide](/editor) when you want more detail on the controls. The [dashboard guide](/dashboard) covers service links and browser defaults.
 
 <div class="support">
 If Homelab Atlas is useful to you, you can <a href="https://www.buymeacoffee.com/aiden0rchad" target="_blank" rel="noopener noreferrer">buy me a coffee</a>.

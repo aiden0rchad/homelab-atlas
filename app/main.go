@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"embed"
 	"errors"
 	"flag"
@@ -34,27 +33,6 @@ func run(arguments []string) error {
 				return errors.New("usage: atlas healthcheck")
 			}
 			return healthcheck()
-		case "collect":
-			flags := flag.NewFlagSet("collect", flag.ContinueOnError)
-			listen := flags.String("listen", "", "serve the authenticated collector")
-			if err := flags.Parse(arguments[1:]); err != nil || flags.NArg() != 0 {
-				return errors.New("usage: atlas collect [--listen ADDRESS]")
-			}
-			if *listen != "" {
-				return serveCollector(*listen)
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
-			defer cancel()
-			snapshot, err := collectDocker(ctx)
-			if err != nil {
-				return fmt.Errorf("collection failed: %w", err)
-			}
-			data, err := encodeSnapshot(snapshot)
-			if err != nil {
-				return fmt.Errorf("collection failed: %w", err)
-			}
-			_, err = os.Stdout.Write(append(data, '\n'))
-			return err
 		}
 	}
 	flags := flag.NewFlagSet("atlas", flag.ContinueOnError)

@@ -4,33 +4,35 @@ Atlas runs on your own machine, but you still need to think about where you expo
 
 ## Where your data goes {#data-flow}
 
-The editor has:
+The editor and dashboard have:
 
-- no accounts or editor login
+- no accounts or login
 - no backend project store or database
 - no telemetry, analytics, external fonts, or AI calls
-- no automatic scans or background polling; a bounded network scan runs only after an explicit click
+- no background polling or network discovery
 - a local bundled logo catalog
 
-The Go editor process serves embedded app files and, when configured, proxies fixed discovery-source requests. Your project stays in the browser's `localStorage`. Atlas creates JSON or image files only when you choose to download them. Collector and API tokens stay in server environment variables; an API token entered in the UI is held in memory only.
+The Go process serves embedded editor and dashboard files. Your project stays in the browser's `localStorage`. Atlas creates JSON or image files only when you choose to download them. Service links are opened only when you select a linked tile on the dashboard.
 
-The normal editor container has no Docker socket. Optional Docker discovery runs as a separate collector with a read-only socket mount and no published port. It calls only Docker's version and container-list endpoints after you choose **Find Docker apps**. The returned snapshot excludes container IDs, environment variables, mounts, commands, logs, arbitrary labels, credentials, and backend URLs. See [Docker discovery](/discovery).
+## Browser storage
 
-Nmap XML import alone executes no scanner or network probe. A live scan runs only after **Find devices**, from the Atlas server's network, against validated IPv4 targets in configured ranges. It uses fixed TCP-only limits, accepts no customizable scripts or flags, exposes no configuration credentials, and keeps output transient until you explicitly apply reviewed findings. Optional service identification can use Nmap's packaged lightweight version probes. Normalized review discards NSE/script output, raw command arguments, service fingerprints, traces, and unknown fields. Retained hostname, vendor, service, product, and version strings can still be private or contain credential-like text. Applied names and IP address facts remain in project JSON. The existing SVG/PNG privacy filter can hide network literals from image exports.
+Autosave, the browser default, and dashboard fallback all use `localStorage` on the current browser origin. The browser keeps separate storage for each hostname, port, protocol, and profile. Clearing site data removes both the autosaved project and the browser default.
+
+The browser default is a fallback, not a server-side setting. It is used only when no autosaved project exists. It can contain the same inventory and private service URLs as any other saved project.
 
 ## Documentation is separate
 
-This GitHub Pages site only hosts the documentation. It does not run the editor and cannot read or edit the project in your browser. GitHub handles its own hosting and access logs under its policies.
+This GitHub Pages site only hosts the documentation. It does not run the editor or dashboard and cannot read or edit the project in your browser. GitHub handles its own hosting and access logs under its policies.
 
 ## Where to run it {#deployment-boundary}
 
-Run the app on localhost or a LAN you trust. Atlas has no login screen, user roles, or built-in TLS. Its optional bearer token protects only discovery API calls; it is not an account system or general editor access control. Do not put Atlas directly on the public internet, and never mount the Docker socket into the editor service.
+Run the app on localhost or a LAN you trust. Atlas has no login screen, user roles, or built-in TLS. There is no API token or discovery endpoint to configure. Do not put Atlas directly on the public internet.
 
-If you bind Compose to `0.0.0.0`, anyone who can reach port 8080 can open the editor. Each browser still has its own project storage, but the app itself has no authentication. Keep the default localhost binding unless you need access from a trusted LAN.
+If you bind Compose to `0.0.0.0`, anyone who can reach port 8080 can open the editor and dashboard. Each browser still has its own project storage, but the app itself has no authentication. Keep the default localhost binding unless you need access from a trusted LAN.
 
 ## Before you share {#content-and-sharing}
 
-Atlas only sees what you type or import. The SVG and PNG Export dialog hides IP addresses, MAC addresses, URLs, and emails by default. You can list custom hostnames, domains, or other names as literal terms. The preview shows the filtered result before download.
+Atlas only sees what you type or load from a project file. The SVG and PNG Export dialog hides IP addresses, MAC addresses, URLs, and emails by default. You can list custom hostnames, domains, or other names as literal terms. The preview shows the filtered result before download. Service links never appear in SVG or PNG exports, even when they are present in the dashboard.
 
 That filter does not make a diagram anonymous. It does not guess which arbitrary names are private, inspect text baked into uploaded logos, filter screenshots, or change saved JSON. Before sharing any file, still check for:
 
@@ -38,6 +40,6 @@ That filter does not make a diagram anonymous. It does not guess which arbitrary
 - device roles or hardware details
 - VLAN and relationship labels
 - service names that reveal sensitive capabilities
-- Docker image, project, service, and container names in discovery snapshots
+- private service links in saved JSON
 
 The documentation screenshots use a fictional sample. See [sharing and backup](/sharing) for details about each file format.

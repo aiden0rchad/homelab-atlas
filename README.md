@@ -16,7 +16,7 @@ A self-hosted app for making homelab diagrams.
 
 I posted a diagram of my homelab on Reddit and someone asked how they could make one too. That's where this project started. I wanted a way to add machines and apps, get the logos in, and update the diagram as things changed.
 
-Atlas lays out your diagram automatically, with optional manual positioning and sizing when you want to adjust the composition. Add your servers, services, and network gear, then export a PNG or SVG for your docs or a post. The app runs locally and doesn't need an account or an LLM. An optional restricted collector can find Docker services for you to review before adding or linking anything.
+Atlas lays out your diagram automatically, with optional manual positioning and sizing when you want to adjust the composition. Add your servers, services, and network gear, add optional links to the services you want to reach, then export a PNG or SVG for your docs or a post. The app runs locally and doesn't need an account or an LLM. The same project can power a private browser dashboard with clickable service tiles.
 
 ![Homelab Atlas editor with the included example project](docs/editor.png)
 
@@ -39,14 +39,15 @@ Open **File** and start with **Load example** to see how it works, or **Start em
 
 You can upload PNG, JPG, WebP, or SVG logos up to 2 MB, preview their contrast background, and reuse them across devices, services, and network nodes. SVG uploads are converted to PNG, and stored images are at most 512px. They stay in project JSON and work offline and in exports. The bundled catalog still includes 27 provider marks. Atlas starts with an automatic layout; **Arrange** in the canvas header lets you move or resize device cards. **Export** previews and downloads a PNG or SVG, with network details hidden by default and optional literal terms for custom names. Use **File → Save project** to download a JSON copy you can edit later.
 
-**Discover devices** guides you through **Choose → Find → Review** for Docker apps, network devices, or a saved Docker JSON/Nmap XML scan. Nothing scans automatically, every result starts unchecked, and **Add selected to diagram** is one undoable change that preserves existing card positions. See the [discovery guide](https://aiden0rchad.github.io/homelab-atlas/discovery).
+Give a service an optional `http://` or `https://` link in its **Apps** tab. Open **Dashboard** in the top bar for a read-only view of the same project where linked service tiles open in a new tab. Links are dashboard-only and never appear in SVG or PNG exports. Use **File → Save as browser default** to choose the project that opens when this browser has no autosaved project, and **Clear browser default** to remove it.
 
-The [editor guide](https://aiden0rchad.github.io/homelab-atlas/editor) covers the controls, and the [networking guide](https://aiden0rchad.github.io/homelab-atlas/networking) explains connections and VLANs.
+The [editor guide](https://aiden0rchad.github.io/homelab-atlas/editor) covers the controls, the [dashboard guide](https://aiden0rchad.github.io/homelab-atlas/dashboard) explains links and the browser default, and the [networking guide](https://aiden0rchad.github.io/homelab-atlas/networking) explains connections and VLANs.
 
 ## A few things to know
 
 - **Save a JSON backup.** Autosave lives in your browser, not the container. Clearing browser data, using private browsing, or opening Atlas at a different hostname or port can make your project appear missing. A PNG or SVG can't be imported as an editable project.
-- **Discovery is explicit.** Atlas never scans automatically or polls Docker. Work starts only after **Find devices** or **Find Docker apps**, and imports always stop for review.
+- **The browser default is separate from autosave.** Save a default to use a project as the starting point on this browser origin. Atlas only falls back to it when no autosaved project exists; editing the default in the editor still creates a normal autosave.
+- **Service links stay in the dashboard.** They are stored in project JSON and browser storage, open only when clicked, and are deliberately left out of SVG and PNG exports.
 - **Connections are logical relationships.** They don't represent individual switch ports, and network cards stay in the automatic header even when you arrange device cards.
 - **There's no login system.** Keep it on localhost or a trusted LAN. Don't expose it directly to the internet.
 - **Export filtering is intentionally narrow.** It hides addresses, URLs, emails, and terms you list from SVG and PNG images. It does not change saved JSON or text baked into uploaded logos.

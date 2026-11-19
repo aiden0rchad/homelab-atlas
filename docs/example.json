@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "revision": 1,
   "title": "Home Lab",
   "subtitle": "Private infrastructure · Local services · Built to last",
@@ -11,9 +11,6 @@
     "cards": []
   },
   "customLogos": [],
-  "discovery": {
-    "bindings": []
-  },
   "networks": [
     {
       "id": "net-internet",
@@ -94,121 +91,141 @@
               "id": "svc-atlas-a-0",
               "logo": "nginx-proxy-manager",
               "name": "Proxy Manager",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-1",
               "logo": "adguard-home",
               "name": "AdGuard",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-2",
               "logo": "syncthing",
               "name": "DNS Sync",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-3",
               "logo": "portainer",
               "name": "Portainer",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-4",
               "logo": "dockge",
               "name": "Dockge",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-5",
               "logo": "homepage",
               "name": "Homepage",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-6",
               "logo": "gitea",
               "name": "Gitea",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-7",
               "logo": "uptime-kuma",
               "name": "Uptime Kuma",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-8",
               "logo": "searxng",
               "name": "SearXNG",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-9",
               "logo": "xwiki",
               "name": "XWiki",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-10",
               "logo": "docmost",
               "name": "Docmost",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-11",
               "logo": "prometheus",
               "name": "Metrics",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-12",
               "logo": "freshrss",
               "name": "FreshRSS",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-13",
               "logo": "paperless-ngx",
               "name": "Paperless",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-14",
               "logo": "immich",
               "name": "Immich",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-15",
               "logo": "nextcloud",
               "name": "Nextcloud",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-16",
               "logo": "vaultwarden",
               "name": "Vaultwarden",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-17",
               "logo": "tailscale",
               "name": "Tailscale",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-18",
               "logo": "nginx",
               "name": "Admin ingress",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-a-19",
               "logo": "wireguard",
               "name": "Net guards",
-              "count": 1
+              "count": 1,
+              "link": ""
             }
           ]
         },
@@ -220,25 +237,29 @@
               "id": "svc-atlas-b-0",
               "logo": "postgresql",
               "name": "Postgres",
-              "count": 2
+              "count": 2,
+              "link": ""
             },
             {
               "id": "svc-atlas-b-1",
               "logo": "redis",
               "name": "Redis",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-b-2",
               "logo": "minio",
               "name": "MinIO",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-atlas-b-3",
               "logo": "restic",
               "name": "Backups",
-              "count": 1
+              "count": 1,
+              "link": ""
             }
           ]
         }
@@ -265,109 +286,127 @@
               "id": "svc-relay-a-0",
               "logo": "jellyfin",
               "name": "Jellyfin",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-1",
               "logo": "sonarr",
               "name": "Sonarr",
-              "count": 3
+              "count": 3,
+              "link": ""
             },
             {
               "id": "svc-relay-a-2",
               "logo": "radarr",
               "name": "Radarr",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-3",
               "logo": "prowlarr",
               "name": "Prowlarr",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-4",
               "logo": "bazarr",
               "name": "Bazarr",
-              "count": 3
+              "count": 3,
+              "link": ""
             },
             {
               "id": "svc-relay-a-5",
               "logo": "seerr",
               "name": "Seerr",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-6",
               "logo": "sabnzbd",
               "name": "SABnzbd",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-7",
               "logo": "qbittorrent",
               "name": "qBittorrent",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-8",
               "logo": "tdarr",
               "name": "Tdarr",
-              "count": 3
+              "count": 3,
+              "link": ""
             },
             {
               "id": "svc-relay-a-9",
               "logo": "open-webui",
               "name": "Open WebUI",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-10",
               "logo": "adguard-home",
               "name": "AdGuard",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-11",
               "logo": "grafana",
               "name": "Grafana",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-12",
               "logo": "postgresql",
               "name": "Postgres",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-13",
               "logo": "home-assistant",
               "name": "HA helper",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-14",
               "logo": "generic",
               "name": "llama.cpp",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-15",
               "logo": "music-assistant",
               "name": "Music Assistant",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-16",
               "logo": "mosquitto",
               "name": "Mosquitto",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-a-17",
               "logo": "node-red",
               "name": "Node-RED",
-              "count": 1
+              "count": 1,
+              "link": ""
             }
           ]
         },
@@ -379,25 +418,29 @@
               "id": "svc-relay-b-0",
               "logo": "home-assistant",
               "name": "Home Assistant",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-b-1",
               "logo": "node-red",
               "name": "Node-RED",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-b-2",
               "logo": "music-assistant",
               "name": "Music",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-relay-b-3",
               "logo": "mosquitto",
               "name": "MQTT",
-              "count": 1
+              "count": 1,
+              "link": ""
             }
           ]
         }
@@ -424,31 +467,36 @@
               "id": "svc-vector-0",
               "logo": "ollama",
               "name": "Ollama",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-vector-1",
               "logo": "open-webui",
               "name": "Open WebUI",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-vector-2",
               "logo": "qwen",
               "name": "Qwen",
-              "count": 3
+              "count": 3,
+              "link": ""
             },
             {
               "id": "svc-vector-3",
               "logo": "n8n",
               "name": "n8n",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-vector-4",
               "logo": "podman",
               "name": "Podman",
-              "count": 1
+              "count": 1,
+              "link": ""
             }
           ]
         }
@@ -473,19 +521,22 @@
               "id": "svc-edge-0",
               "logo": "nginx",
               "name": "nginx",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-edge-1",
               "logo": "cloudflare",
               "name": "Cloudflare",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-edge-2",
               "logo": "tailscale",
               "name": "Tailscale",
-              "count": 1
+              "count": 1,
+              "link": ""
             }
           ]
         }
@@ -510,25 +561,29 @@
               "id": "svc-remote-0",
               "logo": "docmost",
               "name": "Docmost",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-remote-1",
               "logo": "nextcloud",
               "name": "Files",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-remote-2",
               "logo": "postgresql",
               "name": "Postgres",
-              "count": 1
+              "count": 1,
+              "link": ""
             },
             {
               "id": "svc-remote-3",
               "logo": "redis",
               "name": "Redis",
-              "count": 1
+              "count": 1,
+              "link": ""
             }
           ]
         }

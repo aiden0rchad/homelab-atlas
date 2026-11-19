@@ -17,15 +17,10 @@ FILES = (
     "go.mod",
     "app/main.go",
     "app/server.go",
-    "app/docker.go",
-    "app/discovery.go",
-    "app/nmap.go",
-    "app/nmap_scan.go",
     "deploy/Dockerfile",
     "compose.yaml",
     ".dockerignore",
     "deploy/compose.release.yaml",
-    "deploy/compose.nmap.yaml",
     "README.md",
     "LICENSE",
     "docs/THIRD_PARTY_NOTICES.md",
@@ -45,8 +40,8 @@ def version_for(root: Path, tag: str) -> str:
     expected_image = f"ghcr.io/aiden0rchad/homelab-atlas:${{ATLAS_VERSION:-{version}}}"
     compose = (root / "deploy/compose.release.yaml").read_text()
     images = re.findall(r"^\s*image:\s*(\S+)\s*$", compose, re.MULTILINE)
-    if images != [expected_image, expected_image]:
-        raise ValueError(f"compose.release.yaml editor and collector images must be {expected_image}")
+    if images != [expected_image]:
+        raise ValueError(f"compose.release.yaml image must be {expected_image}")
     return version
 
 

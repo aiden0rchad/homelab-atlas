@@ -1,13 +1,15 @@
 # Releases and packages
 
-**v0.12.0** is the latest release. You can read the [release notes](/releases/v0.12.0) or get the files from the [GitHub release](https://github.com/aiden0rchad/homelab-atlas/releases/tag/v0.12.0). Earlier notes remain available. A release is published only after its tests, docs, image, and downloads pass the release workflow.
+**v0.12.0** is the latest release. You can read the [release notes](/releases/v0.12.0) or get the files from the [GitHub release](https://github.com/aiden0rchad/homelab-atlas/releases/tag/v0.12.0). A release is published only after its tests, docs, image, and downloads pass the release workflow.
+
+Release notes for earlier versions are kept for reference. They describe the upstream releases they were written for, and not every feature mentioned there is part of the current build.
 
 ## Release assets
 
 | Asset | Platforms | Purpose |
 |---|---|---|
-| `ghcr.io/aiden0rchad/homelab-atlas:0.12.0` | Linux AMD64, ARM64 | Published scanner-free editor and optional collector image |
-| `homelab-atlas-0.12.0.zip` | Go 1.26+ and a current browser | App source and opt-in local Nmap build recipe |
+| `ghcr.io/aiden0rchad/homelab-atlas:0.12.0` | Linux AMD64, ARM64 | Published editor and dashboard image |
+| `homelab-atlas-0.12.0.zip` | Go 1.26+ and a current browser | App source, deployment files, and documentation |
 | `compose.release.yaml` | Docker Compose v2 | Runs the released image with the standard safety settings |
 | `SHA256SUMS` | Linux/macOS | Integrity checks for the ZIP and Compose file |
 

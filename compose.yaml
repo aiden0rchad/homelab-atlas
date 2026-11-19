@@ -3,13 +3,6 @@ services:
     build:
       context: .
       dockerfile: deploy/Dockerfile
-      args:
-        ATLAS_WITH_NMAP: "${ATLAS_WITH_NMAP:-false}"
-    environment:
-      ATLAS_ALLOWED_HOSTS: "${ATLAS_ALLOWED_HOSTS:-localhost,127.0.0.1,::1}"
-      ATLAS_API_TOKEN: "${ATLAS_API_TOKEN:-}"
-      ATLAS_COLLECTOR_TOKEN: "${ATLAS_COLLECTOR_TOKEN:-}"
-      ATLAS_NMAP_ALLOWED_CIDRS: "${ATLAS_NMAP_ALLOWED_CIDRS:-}"
     ports:
       - "${ATLAS_BIND:-127.0.0.1}:8080:8080"
     read_only: true
@@ -19,37 +12,4 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    networks:
-      - default
-      - discovery
     restart: unless-stopped
-  collector:
-    profiles: ["discovery"]
-    build:
-      context: .
-      dockerfile: deploy/Dockerfile
-      args:
-        ATLAS_WITH_NMAP: "${ATLAS_WITH_NMAP:-false}"
-    command: ["collect", "--listen", ":8081"]
-    environment:
-      ATLAS_COLLECTOR_TOKEN: "${ATLAS_COLLECTOR_TOKEN:-}"
-      ATLAS_DOCKER_API_KEY: "${ATLAS_DOCKER_API_KEY:-}"
-      ATLAS_HAWSER_TOKEN: "${ATLAS_HAWSER_TOKEN:-}"
-      ATLAS_DOCKER_HOST: "${ATLAS_DOCKER_HOST:-unix:///var/run/docker.sock}"
-      ATLAS_HOST_ID: localdocker
-      ATLAS_HOST_NAME: Docker
-      PORT: "8081"
-    user: "0:0"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    networks:
-      - discovery
-    restart: unless-stopped
-networks:
-  discovery:
-    internal: true

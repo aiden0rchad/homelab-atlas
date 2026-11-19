@@ -1,8 +1,8 @@
 # Sharing and backup
 
-JSON is your editable project file. SVG and PNG are images of it.
+JSON is your editable project file. SVG and PNG are images of it. The dashboard is a read-only browser view of the same project.
 
-Atlas 0.9 saves schema version 6. Imports from schema versions 1 through 5 preserve inventory, custom logos, discovery bindings, connections, and manual layout while updating the representation needed for host bindings.
+Atlas 0.12 saves schema version 7. Imports from schema versions 1 through 6 preserve inventory, custom logos, connections, and manual layout. Discovery data from older projects is discarded. Valid schema-5 service links are kept; other older services gain an empty link. Older Atlas versions cannot open schema version 7.
 
 ## Browser autosave
 
@@ -16,6 +16,12 @@ A project can appear missing after you:
 - open the app through a different hostname, port, or protocol
 
 Use **Save project** regularly, especially before updates or before changing the address you use to open Atlas.
+
+## Browser default project
+
+**File → Save as browser default** stores the current project as the fallback for this browser origin. When you open Atlas and no autosaved project exists, the default loads instead of the included example. Loading it does not immediately create an autosave; your first edit does. **File → Clear browser default** removes it without changing the project currently open.
+
+The default is separate from autosave and from **Load example** / **Start empty**. Saving a default does not overwrite the current autosave, and loading a different project does not replace the default unless you save it explicitly. Like autosave, the default belongs to one browser profile, hostname, port, and protocol. It is not stored in the container and does not follow you to another device. See [Dashboard and browser default](/dashboard).
 
 ## JSON backup and transfer
 
@@ -44,6 +50,8 @@ Choose **Export**, then select SVG or PNG. Export creates an image; it does not 
 | PNG | Chats, wikis, broad compatibility | Rendered at 3× when possible, capped at 36 megapixels and 16,384 px per side |
 
 SVG and PNG files cannot be imported to restore a project. Atlas may reduce a large PNG to stay within browser limits. Use SVG when you need to scale the image without a fixed resolution.
+
+Service links are used only by the dashboard. They never appear in SVG or PNG output. The dashboard is not another file format; it reads the same browser-stored project as the editor.
 
 The Export dialog checks **Hide network details** each time it opens. The same previewed filter applies to SVG and PNG, replacing IP addresses, MAC addresses, URLs, and emails with `[hidden]`. **Also hide text** accepts literal custom names, one per line. It is session-only and never changes the project, autosave, JSON, or undo history.
 

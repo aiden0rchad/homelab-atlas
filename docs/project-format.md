@@ -1,12 +1,12 @@
 # Project format
 
-**File → Save project** downloads schema-version-6 JSON. **File → Import project** accepts schema versions 1 through 5 after strict validation. Version 1 gains automatic layout, versions 1 and 2 gain empty network-logo fields, versions 1 through 3 gain an empty `customLogos` array, and versions 1 through 4 gain empty discovery bindings. A valid version-5 project keeps every Docker binding, inventory field, uploaded logo, connection, manual rectangle, and revision; only `schemaVersion` changes. Older Atlas versions cannot open schema version 6.
+**File → Save project** downloads schema-version-7 JSON. **File → Import project** accepts schema versions 1 through 6 after strict validation. Version 1 gains automatic layout, versions 1 and 2 gain empty network-logo fields, versions 1 through 3 gain an empty `customLogos` array, and versions 5 and 6 lose their discovery data. A schema-5 project that already has valid service links keeps them; other older services gain an empty `link`. Older Atlas versions cannot open schema version 7.
 
 ## Top-level fields
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schemaVersion` | integer | Must be `6` |
+| `schemaVersion` | integer | Must be `7` |
 | `revision` | integer | Browser conflict/change revision, from 0 through 1,000,000,000 |
 | `title`, `subtitle` | string | Diagram heading text, at most 120 characters each |
 | `theme` | string | `navy`, `light`, or `midnight` |
@@ -14,11 +14,12 @@
 | `density` | string | `comfortable` or `compact` |
 | `layout` | object | Device-card layout mode and saved rectangles |
 | `customLogos` | array | Uploaded PNG assets stored with the project |
-| `discovery` | object | Stable Docker and Nmap finding bindings |
 | `networks` | array | Network node records |
 | `vlans` | array | VLAN chip records |
 | `devices` | array | Device cards, hardware facts, groups, and services |
 | `connections` | array | Directed logical relationships between network/device endpoints |
+
+Schema version 7 has no `discovery` field. A version-7 file containing one is rejected as an unknown key.
 
 ## Record fields
 
@@ -28,21 +29,37 @@
 | VLAN | `id`, `name`, `color` |
 | Device | `id`, `name`, `role`, `icon`, `accent`, `network`, `hardware`, `groups` |
 | Group | `id`, `name`, `services` |
-| Service | `id`, `logo`, `name`, `count` |
+| Service | `id`, `logo`, `name`, `count`, `link` |
 | Connection | `id`, `from`, `to`, `label` |
 | Layout | `mode`, `cards` |
 | Layout card | `id`, `x`, `y`, `w`, `h` |
 | Custom logo | `id`, `label`, `dataUrl`, `background` |
-| Discovery | `bindings` |
-| Discovery binding | `sourceId`, `key`, `deviceId`, `serviceId` |
 
 Colors use six-digit hexadecimal values such as `#55d6c9`. A device `icon`, service `logo`, or nonempty network logo field must exist in the bundled catalog or `customLogos`. An empty network `icon` selects the automatic kind-based mark; an empty `secondaryIcon` means no secondary mark. A service `count` must be an integer from 1 through 99.
 
+## Service links
+
+Every service has a `link` field. Use an empty string when the service has no link. Otherwise it must be a complete `http://` or `https://` URL no longer than 2,048 characters and containing no whitespace. The URL must include a hostname. Links such as `ftp://`, `javascript:`, relative paths, and bare hostnames are rejected.
+
+Links appear only on the [dashboard](/dashboard). They are not rendered into SVG or PNG exports. They are stored in saved JSON and browser storage, so treat a project file as private when it contains internal service URLs.
+
+## Migration
+
+Imports are validated in their original schema before migration, then validated again as schema version 7. The current project stays open if any step fails.
+
+| Old schema | Migration |
+|---|---|
+| 1 | Add `layout` with automatic mode and no saved cards |
+| 1–2 | Add empty network `icon` and `secondaryIcon` fields |
+| 1–3 | Add an empty `customLogos` array |
+| 5–6 | Remove `discovery`; add empty service links except for valid schema-5 links, which are kept |
+| 7 | No migration; the file must already match this schema |
+
+Schema-5 projects came in two variants: upstream projects with discovery data and fork projects with service links. Both are accepted. Discovery bindings are validated before they are discarded, so malformed legacy data does not silently pass. Raw discovery snapshots were never stored in the project.
+
+## Custom logos
+
 Custom logo IDs start with `custom-` and use the same safe ASCII ID characters, with a total limit of 64 characters. Labels are trimmed, nonempty text up to 120 characters. `background` is `none`, `light`, or `dark`. `dataUrl` is a canonical `data:image/png;base64,...` value. Raw SVG, remote URLs, blob URLs, extra fields, duplicates, and IDs colliding with catalog or project records are rejected.
-
-`discovery.bindings` maps one stable finding identity to a target. `sourceId` is a safe ID of at most 64 characters and each `(sourceId, key)` pair is unique. Docker keys use `compose:` or `container:` plus a 64-character lowercase SHA-256 digest. Nmap endpoints use `nmap:` plus a digest and require a string `serviceId` belonging to `deviceId`. Nmap hosts use `nmap-host:` plus a digest, target the device itself, and require `serviceId: null`. Other null targets and key/target combinations are rejected.
-
-Raw discovery responses and scan times are not saved. A new Nmap card stores selected canonical IP addresses as hardware facts, and selected endpoint services store their display names, such as `Caddy · tcp/443`. Existing cards are not rewritten. These persisted values can contain private network details.
 
 ## IDs and references
 
@@ -66,6 +83,7 @@ Coordinates are integer diagram units relative to the upper-left of the device r
 |---|---:|
 | UTF-8 import file | 2,000,000 bytes |
 | Any text field | 120 characters |
+| Service link | 2,048 characters |
 | Devices | 80 |
 | Network nodes | 30 |
 | VLAN chips | 30 |
@@ -78,7 +96,6 @@ Coordinates are integer diagram units relative to the upper-left of the device r
 | Original upload | 2,000,000 bytes; 4096px per side; 16,000,000 pixels |
 | Stored custom PNG | 512px per side; 200,000 data-URL characters |
 | Custom data URLs, total | 1,200,000 characters |
-| Discovery bindings | 1,600 |
 
 The group limit applies to each device array and to the whole project. Each object only accepts the keys listed above. Extra fields are rejected rather than preserved.
 
@@ -86,7 +103,7 @@ The group limit applies to each device array and to the whole project. Each obje
 
 ```json
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "revision": 1,
   "title": "Small Lab",
   "subtitle": "Fictional example",
@@ -98,9 +115,6 @@ The group limit applies to each device array and to the whole project. Each obje
     "cards": []
   },
   "customLogos": [],
-  "discovery": {
-    "bindings": []
-  },
   "networks": [],
   "vlans": [],
   "devices": [],

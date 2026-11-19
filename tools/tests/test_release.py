@@ -18,16 +18,11 @@ class ReleaseTests(unittest.TestCase):
             "go.mod": "module example.invalid/atlas\n\ngo 1.26\n",
             "app/main.go": "package main\nfunc main() {}\n",
             "app/server.go": "package main\n",
-            "app/docker.go": "package main\n",
-            "app/discovery.go": "package main\n",
-            "app/nmap.go": "package main\n",
-            "app/nmap_scan.go": "package main\n",
             "app/main_test.go": "package main\n",
             "deploy/Dockerfile": "FROM golang:1.26-alpine\n",
             "compose.yaml": "services: {}\n",
             ".dockerignore": ".git\n.env\n",
-            "deploy/compose.release.yaml": "services:\n  atlas:\n    image: ghcr.io/aiden0rchad/homelab-atlas:${ATLAS_VERSION:-0.1.0}\n  collector:\n    image: ghcr.io/aiden0rchad/homelab-atlas:${ATLAS_VERSION:-0.1.0}\n",
-            "deploy/compose.nmap.yaml": "services:\n  atlas:\n    build: .\n",
+            "deploy/compose.release.yaml": "services:\n  atlas:\n    image: ghcr.io/aiden0rchad/homelab-atlas:${ATLAS_VERSION:-0.1.0}\n",
             "README.md": "# Atlas\n",
             "LICENSE": "MIT\n",
             "docs/THIRD_PARTY_NOTICES.md": "Notices\n",
@@ -58,13 +53,9 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn("homelab-atlas-0.1.0/app/public/index.html", names)
             self.assertIn("homelab-atlas-0.1.0/app/public/licenses/logo.txt", names)
             self.assertIn("homelab-atlas-0.1.0/go.mod", names)
-            self.assertIn("homelab-atlas-0.1.0/app/docker.go", names)
-            self.assertIn("homelab-atlas-0.1.0/app/nmap.go", names)
-            self.assertIn("homelab-atlas-0.1.0/app/nmap_scan.go", names)
             self.assertIn("homelab-atlas-0.1.0/deploy/Dockerfile", names)
             self.assertIn("homelab-atlas-0.1.0/compose.yaml", names)
             self.assertIn("homelab-atlas-0.1.0/.dockerignore", names)
-            self.assertIn("homelab-atlas-0.1.0/deploy/compose.nmap.yaml", names)
             self.assertIn("homelab-atlas-0.1.0/docs/THIRD_PARTY_NOTICES.md", names)
             self.assertIn("homelab-atlas-0.1.0/.github/CONTRIBUTING.md", names)
             self.assertNotIn("homelab-atlas-0.1.0/app/main_test.go", names)
@@ -91,9 +82,9 @@ class ReleaseTests(unittest.TestCase):
             root = Path(temporary)
             self.fixture(root)
             (root / "deploy/compose.release.yaml").write_text(
-                "services:\n  atlas:\n    image: ghcr.io/aiden0rchad/homelab-atlas:${ATLAS_VERSION:-0.2.0}\n  collector:\n    image: ghcr.io/aiden0rchad/homelab-atlas:${ATLAS_VERSION:-0.2.0}\n"
+                "services:\n  atlas:\n    image: ghcr.io/aiden0rchad/homelab-atlas:${ATLAS_VERSION:-0.2.0}\n"
             )
-            with self.assertRaisesRegex(ValueError, "editor and collector images"):
+            with self.assertRaisesRegex(ValueError, "compose.release.yaml image"):
                 release.build(root, "v0.1.0", root / "dist")
 
     def test_symlink_is_rejected(self):

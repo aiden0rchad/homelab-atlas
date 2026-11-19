@@ -2,24 +2,20 @@
 
 The app uses browser JavaScript and the Go standard library, with no runtime packages to install. Node.js is used for tests, building logo data, and this documentation site. Python is retained for deterministic release packaging tests.
 
-At startup, the Go server prepares reusable gzip representations for compressible embedded assets when they are smaller than the originals. Static responses use encoding-specific ETags and `Cache-Control: no-cache` revalidation; discovery API and collector inventory responses remain private and uncompressed.
+At startup, the Go server prepares reusable gzip representations for compressible embedded assets when they are smaller than the originals. Static responses use encoding-specific ETags and `Cache-Control: no-cache` revalidation. The server has no project API or other backend endpoints.
 
-The final container includes `LICENSE` and `THIRD_PARTY_NOTICES.md` under `/usr/share/licenses/homelab-atlas/`, including the notice for the adapted Nmap XML projections.
+The final container includes `LICENSE` and `THIRD_PARTY_NOTICES.md` under `/usr/share/licenses/homelab-atlas/`.
 
 ## Source layout
 
 | Path | Purpose |
 |---|---|
-| `app/public/` | Embedded editor assets, logos, sources, and upstream licenses |
-| `app/main.go` | Embedded assets and the server, `healthcheck`, and `collect` commands |
-| `app/server.go` | Restricted static server, discovery API, and collector HTTP handler |
-| `app/docker.go` | Bounded read-only Docker client and sanitized grouping |
-| `app/discovery.go` | Discovery snapshot and configured-source validation |
-| `app/nmap.go` | Strict Nmap XML projection, normalization, limits, and identities |
-| `app/nmap_scan.go` | Validated target/port expansion and bounded Nmap process execution |
+| `app/public/` | Embedded editor, dashboard, logos, sources, and upstream licenses |
+| `app/main.go` | Embedded assets and the server plus the `healthcheck` command |
+| `app/server.go` | Restricted static server for the editor and dashboard |
 | `deploy/` | Dockerfile and source/released Compose recipes |
 | `tools/scripts/` | Repeatable icon and release artifact tools |
-| `tools/tests/` | Node model/discovery tests and Python release tests |
+| `tools/tests/` | Node model/storage/dashboard tests and Python release tests |
 | `docs/` | VitePress documentation and sample files |
 | `compose.yaml` | Default source Compose configuration |
 
@@ -35,22 +31,12 @@ npm run build:icons
 npm run check:icons
 docker compose config
 docker compose --project-directory . -f deploy/compose.release.yaml config
-docker compose --project-directory . -f compose.yaml -f deploy/compose.nmap.yaml config
 python3 tools/scripts/release.py v0.12.0 --output dist
 ```
 
 `npm test` checks logo data, runs the Node tests, runs `go test ./...`, and runs the Python release tests. Release files go into the ignored `dist/` directory, and the release workflow checks their checksums too.
 
-Docker and discovery tests use fictional fixtures. The collector must keep its fixed read-only endpoint set, response bounds, timeout, redirect rejection, and secret-safe errors. The editor server must never mount the Docker socket or accept a browser-supplied target URL.
-
-## Upstream reuse decisions
-
-| Project | License and evidence | Atlas decision |
-|---|---|---|
-| Hawser | [MIT license](https://github.com/Finsys/hawser/blob/bd1282901f7f33537adaebea33121c1831ef07a5/LICENSE) and [Standard HTTP server](https://github.com/Finsys/hawser/blob/bd1282901f7f33537adaebea33121c1831ef07a5/internal/server/http.go) | Implemented only its `X-Hawser-Token` and Docker-path protocol. MIT permits reuse, but Atlas copied no upstream code and does not vendor the full manager. |
-| Docker/Moby client | [Client source](https://github.com/moby/moby/tree/master/client) and [Apache-2.0 license](https://github.com/moby/moby/blob/master/client/LICENSE) | Not used. It remains useful if Atlas needs a broader Docker SDK; the current two-read standard-library client is smaller. |
-| Ullaakut/nmap | [Pinned MIT wrapper](https://github.com/Ullaakut/nmap/tree/95091f90b599d00827e6d42c609cbe4c3afeb0ac) | Adapted only small host/address/hostname/status/port/state/service XML field projections from `xml.go`. Atlas implements validation, limits, identity, normalization, and merging. No wrapper, scanner execution, broad dependency tree, or Go module dependency is included. |
-| Nmap | [NPSL §3](https://nmap.org/npsl/npsl-annotated.html) and [XML format](https://nmap.org/book/output-formats-xml-output.html) | The published image and source ZIP ship no Nmap engine or data files. The opt-in local Docker build installs Alpine's independent `nmap`, `nmap-nselibs`, and `nmap-scripts` packages so fixed lightweight service probes work. Atlas accepts no caller-selected scripts or flags. |
+Node tests cover the project schema, migrations, link validation, storage decoding, dashboard links, custom logos, and layout calculations. Go tests cover static serving, `/dashboard`, compression, caching, security headers, and legacy API 404s.
 
 ## Documentation
 

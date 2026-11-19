@@ -1,7 +1,7 @@
 import { LOGO_IDS, logoDataUri, logoPlate, networkLogoId } from './catalog.js';
 import { validateCustomLogos } from './custom-logos.js';
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 export const THEMES = ['navy', 'light', 'midnight'];
 export const DENSITIES = ['comfortable', 'compact'];
 export const LIMITS = {
@@ -12,9 +12,11 @@ export const LIMITS = {
   networks: 30,
   connections: 160,
   text: 120,
+  link: 2048,
   hardware: 12,
-  bindings: 1600,
 };
+const LEGACY_SCHEMA_VERSIONS = [1, 2, 3, 4, 5, 6];
+const LEGACY_BINDING_LIMIT = 1600;
 
 const ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
@@ -33,13 +35,23 @@ export const escapeXml = value => String(value).replace(/[&<>"']/g, character =>
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
 })[character]);
 
+export function isValidLink(value) {
+  if (typeof value !== 'string' || !value || value.length > LIMITS.link || /\s/.test(value)) return false;
+  try {
+    const url = new URL(value);
+    return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function services(prefix, items) {
-  return items.map(([logo, name, count = 1], index) => ({ id: `svc-${prefix}-${index}`, logo, name, count }));
+  return items.map(([logo, name, count = 1], index) => ({ id: `svc-${prefix}-${index}`, logo, name, count, link: '' }));
 }
 
 export function sampleProject() {
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     revision: 1,
     title: 'Home Lab',
     subtitle: 'Private infrastructure · Local services · Built to last',
@@ -48,7 +60,6 @@ export function sampleProject() {
     density: 'comfortable',
     layout: { mode: 'auto', cards: [] },
     customLogos: [],
-    discovery: { bindings: [] },
     networks: [
       { id: 'net-internet', name: 'Internet', kind: 'Internet', accent: '#48bfe3', icon: '', secondaryIcon: '' },
       { id: 'net-router', name: 'Core Router', kind: 'Router', accent: '#55d6c9', icon: '', secondaryIcon: '' },
@@ -115,15 +126,23 @@ export function parseProject(text) {
   if (new TextEncoder().encode(text).length > LIMITS.bytes) throw new Error('File is larger than 2 MB.');
   let data;
   try { data = JSON.parse(text); } catch { throw new Error('This file is not valid JSON.'); }
-  if ([1, 2, 3, 4, 5].includes(data?.schemaVersion)) {
+  if (LEGACY_SCHEMA_VERSIONS.includes(data?.schemaVersion)) {
     const version = data.schemaVersion;
     validateProjectVersion(data, version);
     const migrated = structuredClone(data);
-    migrated.schemaVersion = 6;
+    migrated.schemaVersion = SCHEMA_VERSION;
     if (version === 1) migrated.layout = { mode: 'auto', cards: [] };
     if (version < 3) migrated.networks = migrated.networks.map(network => ({ ...network, icon: '', secondaryIcon: '' }));
     if (version < 4) migrated.customLogos = [];
-    if (version < 5) migrated.discovery = { bindings: [] };
+    if (version >= 5) delete migrated.discovery;
+    for (const device of migrated.devices) {
+      for (const group of device.groups) {
+        for (const service of group.services) {
+          if (version === 5 && typeof service.link === 'string') continue;
+          service.link = '';
+        }
+      }
+    }
     validateProject(migrated);
     return migrated;
   }
@@ -144,7 +163,7 @@ function validateProjectVersion(project, version) {
     if (!object || typeof object !== 'object' || Array.isArray(object) || Object.keys(object).some(key => !allowed.includes(key))) fail(`${label} has an invalid structure.`);
   };
   if (!project || typeof project !== 'object' || Array.isArray(project)) fail('Project must be an object.');
-  const keys = ['schemaVersion', 'revision', 'title', 'subtitle', 'theme', 'columns', 'density', ...(version >= 2 ? ['layout'] : []), ...(version >= 4 ? ['customLogos'] : []), ...(version >= 5 ? ['discovery'] : []), 'networks', 'vlans', 'devices', 'connections'];
+  const keys = ['schemaVersion', 'revision', 'title', 'subtitle', 'theme', 'columns', 'density', ...(version >= 2 ? ['layout'] : []), ...(version >= 4 ? ['customLogos'] : []), ...(version >= 5 && version < 7 ? ['discovery'] : []), 'networks', 'vlans', 'devices', 'connections'];
   exact(project, keys, 'Project');
   if (project.schemaVersion !== version) fail(`Unsupported schema version: ${project.schemaVersion ?? 'missing'}.`);
   string(project.title, 'Title');
@@ -192,10 +211,12 @@ function validateProjectVersion(project, version) {
       addId(group.id, 'Group'); string(group.name); groupCount += 1;
       if (!Array.isArray(group.services)) fail('Invalid services.');
       for (const service of group.services) {
-        exact(service, ['id', 'logo', 'name', 'count'], 'Service');
+        exact(service, version >= 7 ? ['id', 'logo', 'name', 'count', 'link'] : version === 5 ? ['id', 'logo', 'name', 'count', 'link'] : ['id', 'logo', 'name', 'count'], 'Service');
         addId(service.id, 'Service'); string(service.name); serviceCount += 1;
         if (!validLogo(service.logo)) fail(`Unknown logo: ${service.logo}.`);
         if (!Number.isInteger(service.count) || service.count < 1 || service.count > 99) fail('Service count must be 1–99.');
+        if (version >= 7 && (typeof service.link !== 'string' || (service.link !== '' && !isValidLink(service.link)))) fail('Service link must be empty or a full http:// or https:// URL.');
+        if (version === 5 && 'link' in service && !(service.link === '' || isValidLink(service.link))) fail('Service link must be empty or a full http:// or https:// URL.');
       }
     }
   }
@@ -214,9 +235,9 @@ function validateProjectVersion(project, version) {
     }
   }
   if (serviceCount > LIMITS.services || groupCount > LIMITS.groups) fail('Project contains too many services or groups.');
-  if (version >= 5) {
+  if (version >= 5 && version < 7 && 'discovery' in project) {
     exact(project.discovery, ['bindings'], 'Discovery');
-    if (!Array.isArray(project.discovery.bindings) || project.discovery.bindings.length > LIMITS.bindings) fail('Invalid or excessive discovery bindings.');
+    if (!Array.isArray(project.discovery.bindings) || project.discovery.bindings.length > LEGACY_BINDING_LIMIT) fail('Invalid or excessive discovery bindings.');
     const targets = new Map(project.devices.flatMap(device => device.groups.flatMap(group => group.services.map(service => [service.id, device.id]))));
     const bindings = new Set();
     for (const binding of project.discovery.bindings) {
@@ -248,22 +269,18 @@ export function removeDevice(project, id) {
   project.devices = project.devices.filter(device => device.id !== id);
   project.connections = project.connections.filter(connection => connection.from !== id && connection.to !== id);
   project.layout.cards = project.layout.cards.filter(card => card.id !== id);
-  project.discovery.bindings = project.discovery.bindings.filter(binding => binding.deviceId !== id);
 }
 
 export function removeGroup(project, deviceId, groupId) {
   const device = project.devices.find(item => item.id === deviceId);
   if (!device) return;
-  const removed = new Set(device.groups.find(group => group.id === groupId)?.services.map(service => service.id) || []);
   device.groups = device.groups.filter(group => group.id !== groupId);
-  project.discovery.bindings = project.discovery.bindings.filter(binding => !removed.has(binding.serviceId));
 }
 
 export function removeService(project, deviceId, groupId, serviceId) {
   const group = project.devices.find(item => item.id === deviceId)?.groups.find(item => item.id === groupId);
   if (!group) return;
   group.services = group.services.filter(service => service.id !== serviceId);
-  project.discovery.bindings = project.discovery.bindings.filter(binding => binding.serviceId !== serviceId);
 }
 
 export function removeNetwork(project, id) {
@@ -555,7 +572,7 @@ function renderService(service, x, y, width, height, theme, themeName, secondary
   const plateRect = plate ? `<rect x="${center - geometry.plateSize / 2}" y="${y + geometry.plateY}" width="${geometry.plateSize}" height="${geometry.plateSize}" rx="5" fill="${plate}"/>` : '';
   const name = textElement(service.name, center, y + geometry.firstBaseline, { fill: theme.text, size: geometry.fontSize, weight: 400, anchor: 'middle', maxChars: Math.max(5, Math.floor(width / (geometry.fontSize * .55))), maxLines: 2, lineHeight: geometry.lineHeight });
   const badge = service.count > 1 ? textElement(`×${service.count}`, x + width - 6, y + 11, { fill: theme.muted, size: 9, weight: 600, anchor: 'end', maxChars: 3 }) : '';
-  return `<g><title>${escapeXml(service.name)}${service.count > 1 ? ` ×${service.count}` : ''}</title><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="6" fill="${theme.tile}" stroke="${theme.line}"/>${plateRect}<image href="${logoDataUri(service.logo, customLogos)}" x="${center - geometry.logoSize / 2}" y="${y + geometry.logoY}" width="${geometry.logoSize}" height="${geometry.logoSize}" preserveAspectRatio="xMidYMid meet"/>${name}${badge}</g>`;
+  return `<g data-service="${service.id}"><title>${escapeXml(service.name)}${service.count > 1 ? ` ×${service.count}` : ''}</title><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="6" fill="${theme.tile}" stroke="${theme.line}"/>${plateRect}<image href="${logoDataUri(service.logo, customLogos)}" x="${center - geometry.logoSize / 2}" y="${y + geometry.logoY}" width="${geometry.logoSize}" height="${geometry.logoSize}" preserveAspectRatio="xMidYMid meet"/>${name}${badge}</g>`;
 }
 
 function renderServiceRow(service, x, y, width, height, theme, themeName, compact, customLogos) {
@@ -566,7 +583,7 @@ function renderServiceRow(service, x, y, width, height, theme, themeName, compac
   const plateRect = plate ? `<rect x="${x + 10}" y="${plateY}" width="${geometry.plateSize}" height="${geometry.plateSize}" rx="6" fill="${plate}"/>` : '';
   const name = textElement(service.name, x + geometry.textX + 10, y + geometry.firstBaseline, { fill: theme.text, size: geometry.fontSize, weight: 400, maxChars: Math.max(6, Math.floor((width - geometry.textX - geometry.countWidth - 22) / (geometry.fontSize * .55))), maxLines: 2, lineHeight: geometry.lineHeight });
   const badge = service.count > 1 ? textElement(`×${service.count}`, x + width - 12, y + height / 2 + 4, { fill: theme.muted, size: 11, weight: 600, anchor: 'end', maxChars: 3 }) : '';
-  return `<g><title>${escapeXml(service.name)}${service.count > 1 ? ` ×${service.count}` : ''}</title><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="7" fill="${theme.tile}" stroke="${theme.line}"/>${plateRect}<image href="${logoDataUri(service.logo, customLogos)}" x="${x + 13}" y="${iconY}" width="${geometry.logoSize}" height="${geometry.logoSize}" preserveAspectRatio="xMidYMid meet"/>${name}${badge}</g>`;
+  return `<g data-service="${service.id}"><title>${escapeXml(service.name)}${service.count > 1 ? ` ×${service.count}` : ''}</title><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="7" fill="${theme.tile}" stroke="${theme.line}"/>${plateRect}<image href="${logoDataUri(service.logo, customLogos)}" x="${x + 13}" y="${iconY}" width="${geometry.logoSize}" height="${geometry.logoSize}" preserveAspectRatio="xMidYMid meet"/>${name}${badge}</g>`;
 }
 
 function renderCard(device, box, theme, themeName, customLogos, interactive) {

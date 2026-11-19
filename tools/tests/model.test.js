@@ -4,11 +4,20 @@ import { readFileSync } from 'node:fs';
 import { LOGOS, logoDataUri, logoPlate, networkLogoId, searchLogos } from '../../app/public/catalog.js';
 import { ICON_DATA } from '../../app/public/icon-data.js';
 import {
-  LIMITS, layoutProject, parseProject, removeDevice, removeGroup, removeNetwork, removeService,
+  LIMITS, SCHEMA_VERSION, isValidLink, layoutProject, parseProject, removeDevice, removeGroup, removeNetwork, removeService,
   renderProject, resetAutoLayout, sampleProject, serviceRowGeometry, serviceTileGeometry,
   setManualCard, snapshotManualLayout, uid, validateProject, wrapText,
 } from '../../app/public/model.js';
 import { applyProjectChange, filterInventory, hasStorageConflict, pngDimensions, updateSelection } from '../../app/public/state.js';
+
+function removeServiceLinks(project) {
+  for (const device of project.devices) {
+    for (const group of device.groups) {
+      for (const service of group.services) delete service.link;
+    }
+  }
+  return project;
+}
 
 test('sample validates and renders deterministically in dark and light themes', () => {
   const project = sampleProject();
@@ -83,7 +92,7 @@ test('bad and oversized imports are rejected', () => {
   const project = sampleProject();
   project.schemaVersion = 9;
   assert.throws(() => parseProject(JSON.stringify(project)), /schema/);
-  project.schemaVersion = 6;
+  project.schemaVersion = SCHEMA_VERSION;
   project.devices[0].icon = 'data:image/svg+xml,<script>';
   assert.throws(() => validateProject(project), /Unknown logo/);
   const extra = sampleProject();
@@ -126,23 +135,23 @@ test('schema 1 through 4 imports migrate strictly while preserving data', () => 
   setManualCard(version2, 'dev-storage', { x: 64, y: 32, w: 300, h: 400 });
   version2.schemaVersion = 2;
   delete version2.customLogos;
-  delete version2.discovery;
+  removeServiceLinks(version2);
   for (const network of version2.networks) { delete network.icon; delete network.secondaryIcon; }
   const version2Before = structuredClone(version2);
   const migrated2 = parseProject(JSON.stringify(version2));
   assert.deepEqual(version2, version2Before);
-  assert.equal(migrated2.schemaVersion, 6);
+  assert.equal(migrated2.schemaVersion, SCHEMA_VERSION);
   assert.equal(migrated2.revision, version2.revision);
   assert.deepEqual(migrated2.layout, version2.layout);
   assert.ok(migrated2.networks.every(network => network.icon === '' && network.secondaryIcon === ''));
   assert.deepEqual(migrated2.customLogos, []);
-  assert.deepEqual(migrated2.discovery, { bindings: [] });
+  assert.ok(migrated2.devices.every(device => device.groups.every(group => group.services.every(service => service.link === ''))));
 
   const version1 = structuredClone(version2);
   version1.schemaVersion = 1;
   delete version1.layout;
   const migrated1 = parseProject(JSON.stringify(version1));
-  assert.equal(migrated1.schemaVersion, 6);
+  assert.equal(migrated1.schemaVersion, SCHEMA_VERSION);
   assert.equal(migrated1.revision, version1.revision);
   assert.deepEqual(migrated1.layout, { mode: 'auto', cards: [] });
   assert.ok(migrated1.networks.every(network => network.icon === '' && network.secondaryIcon === ''));
@@ -156,34 +165,56 @@ test('schema 1 through 4 imports migrate strictly while preserving data', () => 
   const version3 = sampleProject();
   version3.schemaVersion = 3;
   delete version3.customLogos;
-  delete version3.discovery;
+  removeServiceLinks(version3);
   version3.networks[0].icon = 'cloudflare';
   version3.networks[0].secondaryIcon = 'tailscale';
   const migrated3 = parseProject(JSON.stringify(version3));
-  assert.equal(migrated3.schemaVersion, 6);
+  assert.equal(migrated3.schemaVersion, SCHEMA_VERSION);
   assert.equal(migrated3.networks[0].icon, 'cloudflare');
   assert.equal(migrated3.networks[0].secondaryIcon, 'tailscale');
   assert.deepEqual(migrated3.customLogos, []);
 
   const version4 = sampleProject();
   version4.schemaVersion = 4;
-  delete version4.discovery;
   version4.customLogos = [];
+  removeServiceLinks(version4);
   const migrated4 = parseProject(JSON.stringify(version4));
-  assert.equal(migrated4.schemaVersion, 6);
-  assert.deepEqual(migrated4.discovery, { bindings: [] });
+  assert.equal(migrated4.schemaVersion, SCHEMA_VERSION);
   assert.deepEqual(migrated4.customLogos, version4.customLogos);
+  assert.ok(migrated4.devices.every(device => device.groups.every(group => group.services.every(service => service.link === ''))));
 });
 
-test('schema 5 migrates unchanged except version and still rejects Nmap bindings', () => {
-  const version5 = sampleProject();
-  version5.schemaVersion = 5;
-  const service = version5.devices[0].groups[0].services[0];
-  version5.discovery.bindings.push({ sourceId: 'docker', key: `container:${'a'.repeat(64)}`, deviceId: version5.devices[0].id, serviceId: service.id });
-  const migrated = parseProject(JSON.stringify(version5));
-  assert.deepEqual({ ...migrated, schemaVersion: 5 }, version5);
-  version5.discovery.bindings[0] = { sourceId: 'nmap', key: `nmap-host:${'b'.repeat(64)}`, deviceId: version5.devices[0].id, serviceId: null };
-  assert.throws(() => parseProject(JSON.stringify(version5)), /binding/);
+test('schema 5 and 6 imports drop discovery data and preserve or backfill links', () => {
+  const upstream5 = sampleProject();
+  upstream5.schemaVersion = 5;
+  removeServiceLinks(upstream5);
+  const target = upstream5.devices[0].groups[0].services[0];
+  upstream5.discovery = { bindings: [{ sourceId: 'docker', key: `container:${'a'.repeat(64)}`, deviceId: upstream5.devices[0].id, serviceId: target.id }] };
+  const migratedUpstream = parseProject(JSON.stringify(upstream5));
+  assert.equal(migratedUpstream.schemaVersion, SCHEMA_VERSION);
+  assert.equal('discovery' in migratedUpstream, false);
+  assert.ok(migratedUpstream.devices.every(device => device.groups.every(group => group.services.every(service => service.link === ''))));
+
+  upstream5.discovery.bindings[0] = { sourceId: 'nmap', key: `nmap-host:${'b'.repeat(64)}`, deviceId: upstream5.devices[0].id, serviceId: null };
+  assert.throws(() => parseProject(JSON.stringify(upstream5)), /binding/);
+
+  const fork5 = sampleProject();
+  fork5.schemaVersion = 5;
+  fork5.devices[0].groups[0].services[0].link = 'https://atlas.example.test/';
+  const migratedFork = parseProject(JSON.stringify(fork5));
+  assert.equal(migratedFork.schemaVersion, SCHEMA_VERSION);
+  assert.equal('discovery' in migratedFork, false);
+  assert.equal(migratedFork.devices[0].groups[0].services[0].link, 'https://atlas.example.test/');
+  assert.equal(migratedFork.devices[0].groups[0].services[1].link, '');
+
+  const upstream6 = sampleProject();
+  upstream6.schemaVersion = 6;
+  removeServiceLinks(upstream6);
+  upstream6.discovery = { bindings: [] };
+  const migrated6 = parseProject(JSON.stringify(upstream6));
+  assert.equal(migrated6.schemaVersion, SCHEMA_VERSION);
+  assert.equal('discovery' in migrated6, false);
+  assert.ok(migrated6.devices.every(device => device.groups.every(group => group.services.every(service => service.link === ''))));
 });
 
 test('legacy project record IDs may match bundled logo IDs', () => {
@@ -191,7 +222,7 @@ test('legacy project record IDs may match bundled logo IDs', () => {
     const project = sampleProject();
     project.schemaVersion = version;
     delete project.customLogos;
-    delete project.discovery;
+    removeServiceLinks(project);
     project.connections = [];
     project.networks[0].id = 'server';
     project.devices[0].id = 'fedora';
@@ -271,46 +302,33 @@ test('IDs, counts, and connection references are enforced', () => {
   assert.throws(() => validateProject(fractional), /1–99/);
 });
 
-test('discovery bindings validate exact unique service targets', () => {
+test('service links require a full http or https URL in schema 7', () => {
   const project = sampleProject();
   const service = project.devices[0].groups[0].services[0];
-  const binding = { sourceId: 'localdocker', key: `container:${'a'.repeat(64)}`, deviceId: project.devices[0].id, serviceId: service.id };
-  project.discovery.bindings.push(binding);
-  assert.equal(validateProject(project), true);
-  project.discovery.bindings.push({ ...binding });
-  assert.throws(() => validateProject(project), /unique/);
-  project.discovery.bindings.pop();
-  project.discovery.bindings[0].deviceId = project.devices[1].id;
-  assert.throws(() => validateProject(project), /service target/);
-  project.discovery.bindings[0].deviceId = project.devices[0].id;
-  project.discovery.bindings[0].extra = true;
-  assert.throws(() => validateProject(project), /structure/);
-
-  for (const malformed of [
-    { sourceId: 'test', key: `container:${'a'.repeat(64)}` },
-    ...Object.keys(binding).map(field => ({ ...binding, [field]: [binding[field]] })),
-  ]) {
-    const invalid = sampleProject();
-    invalid.discovery.bindings.push(malformed);
-    assert.throws(() => validateProject(invalid), /binding/i);
+  for (const link of ['', 'https://atlas.example.test/', 'http://192.0.2.10:8080/path?q=1#section', 'https://localhost:9443']) {
+    service.link = link;
+    assert.equal(validateProject(project), true);
+    assert.equal(isValidLink(link), Boolean(link));
   }
+  for (const link of ['atlas.example.test', 'ftp://atlas.example.test/', 'javascript:alert(1)', 'https://', 'https://exa mple.test', `https://atlas.example.test/${'a'.repeat(LIMITS.link)}`]) {
+    service.link = link;
+    assert.throws(() => validateProject(project), /Service link/);
+    assert.equal(isValidLink(link), false);
+  }
+  delete service.link;
+  assert.throws(() => validateProject(project), /Service link/);
 });
 
-test('deleting devices, groups, and services cleans dangling references', () => {
+test('deleting devices, groups, services, and networks cleans dangling references', () => {
   const project = sampleProject();
   const group = project.devices[0].groups[0];
-  project.discovery.bindings.push(
-    { sourceId: 'docker-a', key: `container:${'a'.repeat(64)}`, deviceId: 'dev-storage', serviceId: group.services[0].id },
-    { sourceId: 'docker-b', key: `container:${'b'.repeat(64)}`, deviceId: 'dev-storage', serviceId: group.services[1].id },
-    { sourceId: 'docker-c', key: `container:${'c'.repeat(64)}`, deviceId: 'dev-media', serviceId: project.devices[1].groups[0].services[0].id },
-  );
-  removeService(project, 'dev-storage', group.id, group.services[0].id);
-  assert.equal(project.discovery.bindings.some(binding => binding.sourceId === 'docker-a'), false);
+  const serviceId = group.services[0].id;
+  removeService(project, 'dev-storage', group.id, serviceId);
+  assert.equal(project.devices[0].groups[0].services.some(service => service.id === serviceId), false);
   removeGroup(project, 'dev-storage', group.id);
-  assert.equal(project.discovery.bindings.some(binding => binding.sourceId === 'docker-b'), false);
+  assert.equal(project.devices[0].groups.some(item => item.id === group.id), false);
   removeDevice(project, 'dev-storage');
   assert.ok(project.connections.every(connection => connection.from !== 'dev-storage' && connection.to !== 'dev-storage'));
-  assert.ok(project.discovery.bindings.every(binding => binding.deviceId !== 'dev-storage'));
   removeNetwork(project, 'net-switch');
   assert.ok(project.connections.every(connection => connection.from !== 'net-switch' && connection.to !== 'net-switch'));
   assert.equal(validateProject(project), true);
@@ -587,7 +605,7 @@ test('manual layout keeps tall content and places new devices below it', () => {
   tall.groups = [{
     id: 'group-tall',
     name: 'Services',
-    services: Array.from({ length: 800 }, (_, index) => ({ id: `service-${index}`, logo: 'generic', name: 'Service', count: 1 })),
+    services: Array.from({ length: 800 }, (_, index) => ({ id: `service-${index}`, logo: 'generic', name: 'Service', count: 1, link: '' })),
   }];
   project.devices = [tall];
   project.connections = [];

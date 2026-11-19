@@ -1,8 +1,0 @@
-services:
-  atlas:
-    image: homelab-atlas-nmap:local
-    build:
-      context: .
-      dockerfile: deploy/Dockerfile
-      args:
-        ATLAS_WITH_NMAP: "true"

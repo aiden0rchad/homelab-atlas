@@ -13,33 +13,3 @@ Homelab Atlas bundles 114 reviewed upstream SVG brand assets for offline display
 Exact filenames, pinned source URLs, and byte sizes are recorded in `app/public/licenses/logo-sources.json`. Restic has no bundled upstream mark and intentionally uses Homelab Atlas's original generic backup glyph. Generic device, service, network, and utility glyphs are original MIT-licensed Homelab Atlas artwork.
 
 Licenses grant copyright permissions; they do not grant trademark rights. Product names and marks remain the property of their respective owners and are used here only to identify services users may diagram. All bundled artwork is local; the app and exported diagrams do not fetch these assets from upstream sources.
-
-## Ullaakut/nmap XML projections
-
-`app/nmap.go` adapts only the relevant XML field projections for hosts, addresses, hostnames, status, ports, state, and service from [Ullaakut/nmap](https://github.com/Ullaakut/nmap/tree/95091f90b599d00827e6d42c609cbe4c3afeb0ac), pinned at commit `95091f90b599d00827e6d42c609cbe4c3afeb0ac`. Atlas implements its own strict parsing preflight, limits, normalization, stable identities, review bundle, and merge flow. It does not include the upstream scanner wrapper, Nmap executable, databases, or Go module dependencies.
-
-MIT License
-
-Copyright (c) 2026 Ullaakut
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-## Nmap executable
-
-Homelab Atlas does not include Nmap in its published base image or source ZIP. Its optional local Docker build installs the independent Alpine `nmap`, `nmap-nselibs`, and `nmap-scripts` packages so Nmap's fixed lightweight service identification works, and Atlas can invoke a user-installed Nmap executable. Atlas does not accept caller-selected scripts or flags. Nmap remains under its own [Nmap Public Source License terms](https://nmap.org/npsl/npsl-annotated.html); those terms are separate from Atlas's MIT license.

@@ -19,3 +19,5 @@ This is a review aid, not complete anonymization. Add hostnames, private domains
 Uploaded PNG, JPG, WebP, and SVG files are stored as PNG data in the project. SVG uploads do not remain vector. Their stored PNGs are at most 512px, so scaling the exported diagram does not recreate vector detail.
 
 SVG and PNG exports work offline and do not contact the original file location. They cannot be imported to restore an editable project. Keep a JSON backup too.
+
+Service links are dashboard-only. They remain in saved JSON and browser storage but never appear in SVG or PNG exports. See [Dashboard and browser default](/dashboard).

@@ -29,7 +29,6 @@ export default defineConfig({
         text: 'Start here',
         items: [
           { text: 'Getting started', link: '/getting-started' },
-          { text: 'Discovery', link: '/discovery' },
           { text: 'Privacy and deployment', link: '/privacy' },
         ],
       },
@@ -37,6 +36,7 @@ export default defineConfig({
         text: 'Build a diagram',
         items: [
           { text: 'Editor', link: '/editor' },
+          { text: 'Dashboard', link: '/dashboard' },
           { text: 'Networking', link: '/networking' },
         ],
       },
@@ -54,6 +54,8 @@ export default defineConfig({
           { text: 'Troubleshooting', link: '/troubleshooting' },
           { text: 'Project format', link: '/project-format' },
           { text: 'Releases', link: '/releases/' },
+          { text: 'v0.12.0', link: '/releases/v0.12.0' },
+          { text: 'v0.11.1', link: '/releases/v0.11.1' },
           { text: 'v0.11.0', link: '/releases/v0.11.0' },
           { text: 'v0.10.0', link: '/releases/v0.10.0' },
           { text: 'v0.9.0', link: '/releases/v0.9.0' },

@@ -2,13 +2,21 @@
 
 This file lists the notable changes in each Homelab Atlas release.
 
-## [0.12.0] - 2026-10-28
+## [0.12.0] - 2026-11-18
+
+### Added
+
+- Added a read-only `/dashboard` view of the browser-stored project, with clickable service tiles and live updates when the project changes.
+- Added optional `http://` and `https://` service links. Links stay dashboard-only and never appear in SVG or PNG exports.
+- Added **File → Save as browser default** and **Clear browser default** actions. When no autosaved project exists, the editor and dashboard fall back to the browser default before the example.
+- Added a dedicated dashboard guide and expanded project-format, storage, and troubleshooting documentation.
 
 ### Changed
 
-- Discovery setup now presents one focused step at a time for local or remote Docker and Docker Compose or native Nmap installs.
-- Configured Docker servers keep the fast path, while missing inputs disable scan actions and readiness, authentication, and collector failures provide specific retry guidance.
-- Unchecked review, layout overlap protection, and one-step Undo behavior remain unchanged.
+- Removed discovery, scanning, Docker collector, Nmap, and Hawser features, including their UI, API, settings, deployment profiles, environment variables, tests, and documentation.
+- Saved projects now use schema version 7. Imports from schema versions 1 through 6 drop discovery data, preserve valid schema-5 service links, and add empty links where needed.
+- The Go server is now a static editor and dashboard server with no project, discovery, or collector API.
+- Diagram and image export output for inventory, placement, and styling is otherwise unchanged.
 
 ## [0.11.1] - 2026-10-28
 

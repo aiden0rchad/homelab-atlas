@@ -1,21 +1,15 @@
 import { LOGOS, customLogoEntries, logoById, logoDataUri, logoPlate, networkLogoId, searchLogos } from './catalog.js';
 import {
-  LIMITS, emptyProject, layoutProject, parseProject, removeDevice, removeGroup, removeNetwork, removeService, resetAutoLayout,
+  LIMITS, emptyProject, isValidLink, layoutProject, parseProject, removeDevice, removeGroup, removeNetwork, removeService, resetAutoLayout,
   renderProject, sampleProject, setManualCard, uid, validateProject,
 } from './model.js';
 import { createExportSnapshot } from './export.js';
 import { applyProjectChange, filterInventory, hasStorageConflict, pngDimensions, updateSelection } from './state.js';
 import { CUSTOM_LOGO_LIMITS, normalizeLogoUpload, verifyCustomLogoDecodes } from './custom-logos.js';
-import {
-  applyDiscoveryPlan, captureProjectGuard, discoveryBinding, discoveryBindingLabel, filterDiscoveryFindings, matchDiscoveryLogo,
-  parseDiscoverySnapshot, planDiscoveryMerge, projectGuardCurrent, setVisibleDiscoverySelection, suggestDiscoveryDestination,
-  suggestDiscoveryGroup, suggestDiscoveryService, validateDiscoverySnapshot, validateNmapBundle,
-} from './discovery.js';
-import { discoverySetupProgress, discoverySetupSteps, SETUP_COMMANDS, shouldOpenDockerSetup, updateDiscoverySetupAnswers } from './discovery-setup.js';
+import { DEFAULT_PROJECT_STORAGE_KEY, decodeProjectRecord } from './project-storage.js';
 
 const $ = selector => document.querySelector(selector);
 const STORAGE_KEY = 'homelab-atlas.project';
-const DISCOVERY_PAGE_SIZE = 50;
 const TAB_ID = uid('tab');
 const templates = [
   { id: 'server', name: 'Server', icon: 'server', accent: '#38bdf8', services: [] },
@@ -51,8 +45,6 @@ let lastStored = '';
 let conflictRaw = '';
 let logoDialogState = null;
 let logoSelection = new Set();
-let discoveryState = null;
-let apiToken = '';
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, character => ({
@@ -172,8 +164,47 @@ function saveProject(force = false) {
   }
 }
 
+function hasStoredDefault() {
+  try {
+    return Boolean(localStorage.getItem(DEFAULT_PROJECT_STORAGE_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function updateDefaultProjectActions() {
+  const available = hasStoredDefault();
+  const clear = $('#clear-default');
+  if (clear) clear.hidden = !available;
+  const save = $('#save-default');
+  if (save) save.title = available ? 'Replace the browser default project with this project' : 'Open this project when no locally saved project exists';
+}
+
+function saveDefaultProject() {
+  try {
+    const raw = JSON.stringify({ tab: TAB_ID, data: JSON.stringify(project) });
+    localStorage.setItem(DEFAULT_PROJECT_STORAGE_KEY, raw);
+    updateDefaultProjectActions();
+    toast('Saved as the browser default project.');
+  } catch {
+    toast('The browser default could not be saved. Local storage is full or unavailable.', true);
+  }
+}
+
+function clearDefaultProject() {
+  try {
+    localStorage.removeItem(DEFAULT_PROJECT_STORAGE_KEY);
+    updateDefaultProjectActions();
+    toast('Browser default project cleared.');
+  } catch {
+    toast('The browser default could not be cleared because local storage is unavailable.', true);
+  }
+}
+
 async function loadProject() {
   let fresh = false;
+  let source = 'saved';
+  let defaultError = null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -182,10 +213,25 @@ async function loadProject() {
       project = loaded;
       lastStored = raw;
     } else {
-      project = sampleProject();
-      fresh = true;
+      const defaultRaw = localStorage.getItem(DEFAULT_PROJECT_STORAGE_KEY);
+      if (defaultRaw) {
+        try {
+          const loaded = decodeProjectRecord(defaultRaw);
+          await verifyCustomLogoDecodes(loaded.customLogos);
+          project = loaded;
+          source = 'default';
+        } catch (error) {
+          project = sampleProject();
+          source = 'default-error';
+          defaultError = error;
+        }
+      } else {
+        project = sampleProject();
+        fresh = true;
+      }
     }
   } catch (error) {
+    updateDefaultProjectActions();
     project = sampleProject();
     setSaveStatus('Not saved — storage unavailable', true);
     toast(`Local project could not be loaded: ${error.message}`);
@@ -193,7 +239,13 @@ async function loadProject() {
     return;
   }
   render();
-  if (fresh) saveProject(); else setSaveStatus('Saved locally');
+  updateDefaultProjectActions();
+  if (fresh) saveProject();
+  else if (source === 'default') setSaveStatus('Using browser default');
+  else if (source === 'default-error') {
+    setSaveStatus('Browser default unavailable', true);
+    toast(`Browser default could not be loaded: ${defaultError.message}`);
+  } else setSaveStatus('Saved locally');
 }
 
 function render() {
@@ -217,7 +269,6 @@ function render() {
   $('#arrange-hint').hidden = !arrangeMode;
   $('#undo').disabled = !history.length;
   $('#redo').disabled = !future.length;
-  invalidateDiscoveryIfStale();
   requestAnimationFrame(() => fitMode === 'manual' ? applyZoom() : fitPreview(fitMode));
 }
 
@@ -383,9 +434,10 @@ function groupElement(group) {
     const row = document.createElement('div');
     row.className = 'service-row';
     row.dataset.service = service.id;
-    row.innerHTML = `<button type="button" data-service-logo class="service-logo" aria-haspopup="dialog" aria-label="Change logo for ${escapeHtml(service.name)}"><img class="${logoPlateClass(service.logo)}" alt="" src="${logoSource(service.logo)}"></button><input data-service-name maxlength="120" aria-label="Service name"><div class="service-controls"><input data-service-count type="number" min="1" max="99" step="1" aria-label="Instance count"><button data-service-up class="mini" aria-label="Move up">${icon('up')}</button><button data-service-down class="mini" aria-label="Move down">${icon('down')}</button><button data-remove-service class="mini danger" aria-label="Remove service">${icon('close')}</button></div>`;
+    row.innerHTML = `<button type="button" data-service-logo class="service-logo" aria-haspopup="dialog" aria-label="Change logo for ${escapeHtml(service.name)}"><img class="${logoPlateClass(service.logo)}" alt="" src="${logoSource(service.logo)}"></button><input data-service-name maxlength="120" aria-label="Service name"><div class="service-controls"><input data-service-count type="number" min="1" max="99" step="1" aria-label="Instance count"><button data-service-up class="mini" aria-label="Move up">${icon('up')}</button><button data-service-down class="mini" aria-label="Move down">${icon('down')}</button><button data-remove-service class="mini danger" aria-label="Remove service">${icon('close')}</button></div><label class="service-link"><span>Link</span><input data-service-link type="url" inputmode="url" autocomplete="off" spellcheck="false" maxlength="${LIMITS.link}" placeholder="https://service.example.com" aria-label="Link for ${escapeHtml(service.name)}"></label>`;
     row.querySelector('[data-service-name]').value = service.name;
     row.querySelector('[data-service-count]').value = service.count;
+    row.querySelector('[data-service-link]').value = service.link;
     return row;
   }));
   return element;
@@ -450,7 +502,7 @@ $('#inspector-content').addEventListener('change', event => {
   } else if (event.target.matches('[data-group-name]') && deviceId) {
     const groupId = event.target.closest('[data-group]').dataset.group;
     change(candidate => { candidate.devices.find(item => item.id === deviceId).groups.find(group => group.id === groupId).name = event.target.value; });
-  } else if (event.target.matches('[data-service-name], [data-service-count]') && deviceId) {
+  } else if (event.target.matches('[data-service-name], [data-service-count], [data-service-link]') && deviceId) {
     const groupId = event.target.closest('[data-group]').dataset.group;
     const serviceId = event.target.closest('[data-service]').dataset.service;
     const count = Number(event.target.value);
@@ -458,9 +510,16 @@ $('#inspector-content').addEventListener('change', event => {
       render();
       return toast('Instance count must be a whole number from 1 to 99.');
     }
+    const link = event.target.matches('[data-service-link]') ? event.target.value.trim() : '';
+    if (event.target.matches('[data-service-link]') && link && !isValidLink(link)) {
+      render();
+      return toast(`Service links must be full http:// or https:// URLs up to ${LIMITS.link} characters.`);
+    }
     change(candidate => {
       const service = candidate.devices.find(item => item.id === deviceId).groups.find(group => group.id === groupId).services.find(item => item.id === serviceId);
-      if (event.target.matches('[data-service-count]')) service.count = count; else service.name = event.target.value;
+      if (event.target.matches('[data-service-count]')) service.count = count;
+      else if (event.target.matches('[data-service-link]')) service.link = link;
+      else service.name = event.target.value;
     });
   } else if (event.target.matches('[data-vlan-name], [data-vlan-color]')) {
     const vlanId = event.target.closest('[data-vlan]').dataset.vlan;
@@ -586,7 +645,7 @@ $('#template-grid').addEventListener('click', event => {
     change(candidate => {
       candidate.devices.push({
         id, name: template.name, role: template.name, icon: template.icon, accent: template.accent, network: 'Main', hardware: [],
-        groups: [{ id: uid('grp'), name: 'Services', services: template.services.map(([logo, name]) => ({ id: uid('svc'), logo, name, count: 1 })) }],
+        groups: [{ id: uid('grp'), name: 'Services', services: template.services.map(([logo, name]) => ({ id: uid('svc'), logo, name, count: 1, link: '' })) }],
       });
     }, { select: id });
     inspectorOpen = true;
@@ -703,7 +762,7 @@ $('#add-selected').addEventListener('click', event => {
   if (change(candidate => {
     candidate.customLogos.push(...ids.filter(id => state.drafts.has(id)).map(id => state.drafts.get(id)));
     const group = candidate.devices.find(device => device.id === deviceId).groups.find(item => item.id === groupId);
-    group.services.push(...ids.map(id => ({ id: uid('svc'), logo: id, name: state.drafts.get(id)?.label || logoFor(id).label, count: 1 })));
+    group.services.push(...ids.map(id => ({ id: uid('svc'), logo: id, name: state.drafts.get(id)?.label || logoFor(id).label, count: 1, link: '' })));
   })) $('#logo-dialog').close();
 });
 $('#add-custom').addEventListener('click', () => {
@@ -714,7 +773,7 @@ $('#add-custom').addEventListener('click', () => {
   if (countServices() >= LIMITS.services) return toast('Service limit reached.');
   const { deviceId, groupId } = logoDialogState;
   if (change(candidate => {
-    candidate.devices.find(device => device.id === deviceId).groups.find(group => group.id === groupId).services.push({ id: uid('svc'), logo: 'generic', name, count: 1 });
+    candidate.devices.find(device => device.id === deviceId).groups.find(group => group.id === groupId).services.push({ id: uid('svc'), logo: 'generic', name, count: 1, link: '' });
   })) $('#logo-dialog').close();
 });
 
@@ -866,1122 +925,6 @@ $('#connection-list').addEventListener('change', event => {
   if (row) change(candidate => { candidate.connections.find(connection => connection.id === row.dataset.connection).label = event.target.value; });
 });
 
-const HOMELAB_PORTS = '22,53,80,443,445,1883,2283,3000,5000,5055,5432,6379,6767,7878,8000,8006,8080,8081,8090,8096,8123,8443,8686,8888,8920,8989,9000,9090,9443,9696,11434,32400';
-
-function setDiscoveryStatus(message, error = false, details = '') {
-  $('#discovery-status').textContent = message;
-  $('#discovery-status').classList.toggle('error', error);
-  $('#discovery-error-details').hidden = !details;
-  $('#discovery-error-details pre').textContent = details;
-}
-
-function setDiscoveryStep(step, focus = false) {
-  $('#discovery-choose').hidden = step !== 'choose';
-  $('#discovery-find').hidden = step !== 'find';
-  $('#discovery-results').hidden = step !== 'review';
-  $('#discovery-apply').hidden = step !== 'review';
-  $('#discovery-summary').hidden = step !== 'review';
-  for (const name of ['choose', 'find', 'review']) {
-    const item = $(`#discovery-progress-${name}`);
-    if (name === step) item.setAttribute('aria-current', 'step'); else item.removeAttribute('aria-current');
-  }
-  discoveryState.step = step;
-  if (focus) $(`#discovery-${step}-title`)?.focus();
-}
-
-function cancelDiscoveryWork() {
-  if (!discoveryState) return;
-  discoveryState.controller?.abort();
-  discoveryState.requestToken = Symbol('method-changed');
-  discoveryState.pendingNmapFile = null;
-  discoveryState.pendingNetworkScan = null;
-  discoveryState.pendingDockerSource = null;
-  discoveryState.pendingAuthToken = null;
-  setNetworkScanning(false);
-  if (discoveryState.authRequired) showDiscoveryAuth(); else hideDiscoveryAuth();
-}
-
-function commandRow(command) {
-  return `<span class="command-row"><code>${escapeHtml(command)}</code><button type="button" data-copy-command>Copy</button></span>`;
-}
-
-function setupStepContent(step) {
-  const docs = 'https://aiden0rchad.github.io/homelab-atlas/discovery';
-  const content = {
-    'docker-location': ['Where is Docker running?', '<p>Choose the server whose containers you want to list.</p>', [['same', 'Same server as Atlas', 'Best for Atlas Compose installs.'], ['another', 'Another server', 'Use a one-time snapshot or configure a remote collector.']]],
-    'docker-install': ['How did you install Atlas?', '<p>This selects the instructions and command that match your install.</p>', [['released', 'Downloaded Compose file', 'You use compose.release.yaml.'], ['source', 'Source checkout', 'You cloned the repository.'], ['native', 'Native Go', 'You run the Atlas binary directly.']]],
-    'nmap-install': ['How is Atlas installed?', '<p>Nmap must be installed on the same server or container that runs Atlas.</p>', [['compose', 'Docker Compose', 'Requires a source checkout or extracted release ZIP.'], ['native', 'Native Go', 'Install Nmap on the Atlas machine.']]],
-  };
-  if (content[step]) {
-    const [title, body, choices] = content[step];
-    const key = step.endsWith('location') ? 'location' : 'install';
-    return { title, body: `${body}<div class="setup-choices">${choices.map(([value, label, help]) => `<label><input type="radio" name="setup-choice" value="${value}" data-setup-answer="${key}"${discoveryState.setup.answers[key] === value ? ' checked' : ''}><span><strong>${label}</strong><small>${help}</small></span></label>`).join('')}</div>` };
-  }
-  const pages = {
-    'docker-token': ['Prepare a collector token', `<p>This token protects the restricted collector. Run this command on the Atlas server:</p>${commandRow(SETUP_COMMANDS.token)}<p class="discovery-notice">Do not enter or paste this token into the browser.</p>`],
-    'docker-env': ['Save the token in .env', `<p>Open the existing <code>.env</code> beside <code>${discoveryState.setup.answers.install === 'released' ? 'compose.release.yaml' : 'compose.yaml'}</code>. Add this line without overwriting other settings:</p>${commandRow(SETUP_COMMANDS.collectorEnv)}<p class="discovery-notice">The collector needs access to Docker. The main Atlas editor does not.</p>`],
-    'docker-start-released': ['Start the collector', `<p>From that Compose folder, run only the command for the downloaded Compose file:</p>${commandRow(SETUP_COMMANDS.composeRelease)}`],
-    'docker-start-source': ['Start the collector', `<p>From the source checkout, run:</p>${commandRow(SETUP_COMMANDS.composeSource)}`],
-    'docker-check': ['Check your setup', '<p>Atlas will reload the configured server list. This check does not scan Docker; scanning starts only when you choose <strong>Find Docker apps</strong>.</p>'],
-    'docker-native': ['Use the native or remote collector guide', `<p>A native install needs a separately configured collector. Atlas cannot grant Docker access or create that service from the browser.</p><p><a href="${docs}#remote-collectors" target="_blank" rel="noopener noreferrer">Open native and remote collector setup</a></p>`],
-    'docker-snapshot': ['Import a one-time snapshot', `<p>The simplest path needs no network connection between servers. Run this restricted command on the Docker server:</p>${commandRow(SETUP_COMMANDS.snapshot)}<p>The file contains sanitized inventory for review. For ongoing live discovery, use the <a href="${docs}#remote-collectors" target="_blank" rel="noopener noreferrer">remote collector guide</a>.</p>`],
-    'nmap-source': ['Use source files', '<p>The published container image is scanner-free. Use a source checkout or an extracted release ZIP; an environment flag cannot add Nmap to the published image.</p><p><a href="https://github.com/aiden0rchad/homelab-atlas/releases/latest" target="_blank" rel="noopener noreferrer">Download the current source release</a></p>'],
-    'nmap-env': ['Enable the Nmap build', `<p>Open the existing <code>.env</code> in that source folder. Add this line without overwriting other settings:</p>${commandRow(SETUP_COMMANDS.nmapEnv)}`],
-    'nmap-build': ['Build and start Atlas', `<p>Run this from the source checkout or extracted release folder:</p>${commandRow(SETUP_COMMANDS.nmapBuild)}`],
-    'nmap-native': ['Install Nmap on the Atlas server', '<p>Use the operating-system package manager to install Nmap and its service-detection data on the machine running Atlas. Then restart Atlas.</p><p><a href="https://nmap.org/download.html" target="_blank" rel="noopener noreferrer">Official Nmap install downloads</a></p>'],
-    'nmap-check': ['Check your setup', '<p>Atlas will check whether the Nmap scanner is available. It will not start a scan.</p>'],
-  };
-  const [title, body] = pages[step];
-  return { title, body };
-}
-
-function renderDiscoverySetup(focus = true) {
-  const setup = discoveryState?.setup;
-  if (!setup) return;
-  const steps = discoverySetupSteps(setup.method, setup.answers);
-  setup.index = Math.min(setup.index, steps.length - 1);
-  const step = steps[setup.index];
-  const page = setupStepContent(step);
-  const root = $(`#discovery-${setup.method}-setup`);
-  const choice = ['docker-location', 'docker-install', 'nmap-install'].includes(step);
-  const last = setup.index === steps.length - 1;
-  const check = step.endsWith('-check');
-  const snapshot = step === 'docker-snapshot';
-  const choiceKey = step.endsWith('location') ? 'location' : 'install';
-  root.innerHTML = `<div class="setup-step-head"><span>${discoverySetupProgress(setup.method, setup.answers, setup.index)}</span><h4 tabindex="-1">${page.title}</h4></div>${page.body}${setup.feedback ? `<p class="discovery-notice" role="status">${setup.feedback}</p>` : ''}<div class="setup-alternative">${setup.method === 'network' ? '<button type="button" data-setup-import="nmap">Import Nmap XML instead</button>' : ''}</div><div class="setup-nav"><button type="button" data-setup-back>${setup.index ? 'Back' : 'Back to methods'}</button>${check ? `<button type="button" class="primary" data-setup-check="${setup.method}">${setup.feedback ? 'Retry' : 'Check setup'}</button>` : snapshot ? '<button type="button" class="primary" data-setup-import="docker">Import Docker snapshot</button>' : last && step === 'docker-native' ? '' : `<button type="button" class="primary" data-setup-next${choice && !setup.answers[choiceKey] ? ' disabled' : ''}>Continue</button>`}</div>`;
-  root.hidden = false;
-  if (setup.method === 'docker') $('#discovery-docker-ready').hidden = true;
-  else $('#discovery-network-ready').hidden = true;
-  if (focus) root.querySelector('h4').focus();
-}
-
-function openDiscoverySetup(method, cancel = true) {
-  if (!discoveryState || discoveryState.step === 'review') return;
-  if (cancel) cancelDiscoveryWork();
-  discoveryState.setup = { method, answers: {}, index: 0 };
-  renderDiscoverySetup();
-  setDiscoveryStatus('');
-}
-
-function closeDiscoverySetup() {
-  const setup = discoveryState?.setup;
-  if (!setup) return;
-  $(`#discovery-${setup.method}-setup`).hidden = true;
-  discoveryState.setup = null;
-  if (setup.method === 'docker' && discoveryState.sources.length) $('#discovery-docker-ready').hidden = false;
-  else showDiscoveryChooser();
-}
-
-function showDockerError(message, retry) {
-  discoveryState.dockerRetry = retry;
-  $('#discovery-docker-error span').textContent = message;
-  $('#discovery-retry-docker').textContent = retry === 'scan' ? 'Retry scan' : 'Retry check';
-  $('#discovery-docker-error').setAttribute('role', 'status');
-  $('#discovery-docker-error').setAttribute('aria-live', 'polite');
-  $('#discovery-docker-error').hidden = false;
-}
-
-function chooseDiscoveryMethod(method, focus = true) {
-  if (!discoveryState) return;
-  cancelDiscoveryWork();
-  discoveryState.method = method;
-  discoveryState.bundle = null;
-  discoveryState.snapshot = null;
-  discoveryState.plan = null;
-  discoveryState.reviewCache.clear();
-  discoveryState.setup = null;
-  $('#discovery-docker-setup').hidden = true;
-  $('#discovery-network-setup').hidden = true;
-  $('#discovery-docker-ready').hidden = !discoveryState.sources.length;
-  $('#discovery-network-ready').hidden = !discoveryState.nmapStatus?.available;
-  for (const name of ['docker', 'network', 'import']) $(`#discovery-${name}-panel`).hidden = name !== method;
-  const titles = { docker: 'Find Docker apps', network: 'Find network devices with Nmap', import: 'Import saved scan' };
-  $('#discovery-find-title').textContent = titles[method];
-  setDiscoveryStep('find', focus);
-  if (method === 'docker' && shouldOpenDockerSetup(discoveryState.dockerSourcesStatus, discoveryState.sources)) openDiscoverySetup('docker');
-  if (method === 'network' && discoveryState.nmapStatus && !discoveryState.nmapStatus.available) openDiscoverySetup('network');
-  if (discoveryState.authRequired) showDiscoveryAuth();
-  else if (method === 'docker' && ['unknown', 'loading'].includes(discoveryState.dockerSourcesStatus)) setDiscoveryStatus('Checking Docker setup…');
-  else setDiscoveryStatus('');
-}
-
-function showDiscoveryChooser() {
-  cancelDiscoveryWork();
-  discoveryState.method = null;
-  discoveryState.bundle = null;
-  discoveryState.snapshot = null;
-  discoveryState.reviewCache.clear();
-  setDiscoveryStep('choose', true);
-  if (discoveryState.authRequired) showDiscoveryAuth(); else setDiscoveryStatus('');
-}
-
-function invalidateDiscoveryIfStale() {
-  if (!discoveryState || !$('#discovery-dialog').open || projectGuardCurrent(discoveryState.guard, project)) return;
-  if (discoveryState.applying) return;
-  discoveryState.controller?.abort();
-  discoveryState.requestToken = Symbol('stale-project');
-  discoveryState.pendingNmapFile = null;
-  discoveryState.pendingNetworkScan = null;
-  discoveryState.pendingAuthToken = null;
-  setNetworkScanning(false);
-  discoveryState.stale = true;
-  discoveryState.reviewCache.clear();
-  discoveryState.plan = null;
-  $('#discovery-apply').disabled = true;
-  setDiscoveryStatus('The project changed. Close this review and open discovery again.', true);
-}
-
-async function discoveryFetch(url, options = {}, token = apiToken) {
-  const headers = new Headers(options.headers || {});
-  headers.set('X-Atlas-Request', '1');
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-  return fetch(url, { ...options, headers });
-}
-
-async function boundedResponseJSON(response) {
-  const declared = Number(response.headers.get('Content-Length'));
-  if (Number.isFinite(declared) && declared > 2_000_000) throw new Error('The discovery response is larger than 2 MB.');
-  const reader = response.body.getReader();
-  const chunks = []; let size = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.length;
-    if (size > 2_000_000) { await reader.cancel(); throw new Error('The discovery response is larger than 2 MB.'); }
-    chunks.push(value);
-  }
-  try {
-    const bytes = new Uint8Array(size); let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-  } catch { throw new Error('The server returned invalid discovery data.'); }
-}
-
-function beginDiscoveryRequest(message, clearResults = false) {
-  discoveryState.controller?.abort();
-  setNetworkScanning(false);
-  const token = Symbol('discovery-request');
-  const controller = new AbortController();
-  discoveryState.requestToken = token;
-  discoveryState.controller = controller;
-  if (clearResults) {
-    discoveryState.bundle = null;
-    discoveryState.pendingNmapFile = null;
-    discoveryState.pendingNetworkScan = null;
-    discoveryState.pendingDockerSource = null;
-    discoveryState.pendingAuthToken = null;
-    discoveryState.statusBeforeAuth = null;
-    discoveryState.plan = null;
-    discoveryState.snapshot = null;
-    discoveryState.choices = new Map();
-    discoveryState.query = '';
-    discoveryState.page = 0;
-    $('#discovery-results').hidden = true;
-    $('#discovery-apply').disabled = true;
-    $('#discovery-findings').replaceChildren();
-    $('#discovery-summary').textContent = '';
-    $('#discovery-search').value = '';
-    $('#discovery-range').textContent = '';
-    $('#discovery-host').replaceChildren();
-    $('#discovery-host-navigation').hidden = true;
-    $('#discovery-host-meta').hidden = true;
-    $('#discovery-host-meta').textContent = '';
-  }
-  setDiscoveryStatus(message);
-  return { state: discoveryState, token, controller };
-}
-
-function discoveryRequestCurrent(request) {
-  return discoveryState === request.state && request.state.requestToken === request.token
-    && projectGuardCurrent(request.state.guard, project) && $('#discovery-dialog').open;
-}
-
-function hideDiscoveryAuth(clear = true) {
-  $('#discovery-auth').hidden = true;
-  if (clear) $('#discovery-api-token').value = '';
-}
-
-function showDiscoveryAuth(focus = false) {
-  $('#discovery-source').disabled = true;
-  $('#discovery-scan').disabled = true;
-  $('#discovery-network-start').disabled = true;
-  $('#discovery-auth').hidden = false;
-  setDiscoveryStatus('Access token required. Enter the Atlas server token and choose Unlock.', true);
-  if (focus) $('#discovery-api-token').focus();
-}
-
-function requestDiscoveryUnlock(request) {
-  if (!discoveryRequestCurrent(request)) return;
-  discoveryState.authRequired = true;
-  if (discoveryState.snapshot && discoveryState.statusBeforeAuth === null) discoveryState.statusBeforeAuth = $('#discovery-status').textContent;
-  if (!discoveryState.unlocking) $('#discovery-unlock').disabled = false;
-  showDiscoveryAuth(true);
-}
-
-function setNetworkScanning(active, request = null) {
-  if (!discoveryState) return;
-  if (active) {
-    if (!request || !discoveryRequestCurrent(request)) return;
-    discoveryState.activeNetworkToken = request.token;
-  } else if (request) {
-    if (discoveryState !== request.state || discoveryState.activeNetworkToken !== request.token) return;
-    discoveryState.activeNetworkToken = null;
-  } else {
-    discoveryState.activeNetworkToken = null;
-  }
-  $('#discovery-network-start').hidden = active;
-  $('#discovery-network-stop').hidden = !active;
-  for (const id of ['discovery-targets', 'discovery-port-preset', 'discovery-ports', 'discovery-detect-services']) $(`#${id}`).disabled = active;
-  $('#discovery-network-start').textContent = active ? 'Finding devices…' : 'Find devices';
-  if (!active) $('#discovery-network-start').disabled = !discoveryState.nmapStatus?.available || !$('#discovery-targets').value.trim();
-}
-
-function metadataRequestCurrent(request, field) {
-  return discoveryState === request.state && $('#discovery-dialog').open
-    && request.state[field] === request.controller && apiToken === request.apiToken;
-}
-
-async function boundedResponseText(response) {
-  const reader = response.body?.getReader();
-  if (!reader) return '';
-  const chunks = []; let size = 0;
-  while (size <= 1000) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.length;
-    chunks.push(value);
-  }
-  if (size > 1000) await reader.cancel();
-  const bytes = new Uint8Array(Math.min(size, 1000)); let offset = 0;
-  for (const chunk of chunks) { const part = chunk.subarray(0, bytes.length - offset); bytes.set(part, offset); offset += part.length; }
-  return new TextDecoder().decode(bytes).trim();
-}
-
-async function loadNmapStatus(expectedState = discoveryState) {
-  if (!expectedState || discoveryState !== expectedState) return false;
-  expectedState.statusController?.abort();
-  const state = expectedState;
-  const controller = new AbortController();
-  state.statusController = controller;
-  const request = { state, controller, apiToken, actionToken: state.requestToken };
-  $('#discovery-network-badge').textContent = 'Checking';
-  $('#discovery-network-ready').hidden = true;
-  if (!state.setup) $('#discovery-network-setup').hidden = true;
-  $('#discovery-network-error').hidden = true;
-  try {
-    const response = await discoveryFetch('/api/discovery/nmap/status', { signal: controller.signal }, request.apiToken);
-    if (response.status === 401) {
-      if (metadataRequestCurrent(request, 'statusController')) {
-        state.pendingAuthToken = state.requestToken;
-        requestDiscoveryUnlock({ state, token: state.requestToken, controller: state.controller });
-      }
-      return false;
-    }
-    if (response.status === 403) throw new Error('Discovery access is blocked. Add this browser hostname or IP to ATLAS_ALLOWED_HOSTS.');
-    if (!response.ok) throw new Error(`Nmap status could not be loaded (${response.status}).`);
-    const value = await boundedResponseJSON(response);
-    if (!value || Object.keys(value).length !== 4 || typeof value.available !== 'boolean' || !Array.isArray(value.allowedCidrs)
-      || value.allowedCidrs.some(item => typeof item !== 'string') || value.maxHosts !== 256 || value.timeoutSeconds !== 120) throw new Error('The server returned invalid Nmap status.');
-    if (!metadataRequestCurrent(request, 'statusController')) return false;
-    state.nmapStatus = value;
-    $('#discovery-network-start').disabled = !value.available || !$('#discovery-targets').value.trim();
-    $('#discovery-network-badge').textContent = value.available ? 'Ready' : 'Setup needed';
-    $('#discovery-network-ready').hidden = !value.available;
-    $('#discovery-network-error').hidden = true;
-    $('#discovery-network-help').textContent = value.available
-      ? `Runs from this Atlas server. Allowed ranges: ${value.allowedCidrs.join(', ')}. Up to ${value.maxHosts} hosts and ${value.timeoutSeconds} seconds; firewalls may hide hosts.`
-      : `Nmap is not installed on this Atlas server. XML import and Docker discovery are still available. Allowed ranges: ${value.allowedCidrs.join(', ')}.`;
-    if (!value.available && state.method === 'network' && state.step === 'find') {
-      if (state.setup?.method === 'network') {
-        const steps = discoverySetupSteps('network', state.setup.answers);
-        if (steps[state.setup.index] === 'nmap-check') state.setup.feedback = 'Nmap is still unavailable. Check the build or installation, restart Atlas, then try again.';
-        renderDiscoverySetup(false);
-      } else openDiscoverySetup('network', false);
-    }
-    if (value.available && state.setup?.method === 'network' && state.step === 'find') {
-      state.setup = null;
-      $('#discovery-network-setup').hidden = true;
-    }
-    return true;
-  } catch (error) {
-    if (error.name === 'AbortError' || !metadataRequestCurrent(request, 'statusController')) return false;
-    $('#discovery-network-start').disabled = true;
-    $('#discovery-network-badge').textContent = 'Check failed';
-    $('#discovery-network-help').textContent = error.message;
-    $('#discovery-network-ready').hidden = true;
-    $('#discovery-network-setup').hidden = true;
-    $('#discovery-network-error span').textContent = error.message;
-    $('#discovery-network-error').hidden = false;
-    return false;
-  } finally {
-    if (metadataRequestCurrent(request, 'statusController')) state.statusController = null;
-  }
-}
-
-function fillDiscoverySources(sources, updateStatus = true) {
-  const select = $('#discovery-source');
-  const selectedSource = select.value;
-  select.replaceChildren();
-  if (!sources.length) {
-    select.add(new Option('No configured collectors', ''));
-    select.disabled = true;
-    $('#discovery-scan').disabled = true;
-    $('#discovery-docker-badge').textContent = 'Setup needed';
-    $('#discovery-docker-ready').hidden = true;
-    $('#discovery-docker-error').hidden = true;
-    if (discoveryState?.method === 'docker' && discoveryState.step === 'find') {
-      if (discoveryState.setup?.method === 'docker') {
-        const steps = discoverySetupSteps('docker', discoveryState.setup.answers);
-        if (steps[discoveryState.setup.index] === 'docker-check') discoveryState.setup.feedback = 'No Docker server is configured yet. Check the collector command and token, then try again.';
-        renderDiscoverySetup(false);
-      } else openDiscoverySetup('docker', false);
-    } else $('#discovery-docker-setup').hidden = true;
-    if (updateStatus && discoveryState?.method === 'docker') setDiscoveryStatus(discoveryState.setup?.feedback ? '' : 'Connect a Docker server, then check setup.');
-    return;
-  }
-  select.add(new Option('Choose a server…', ''));
-  for (const source of sources) select.add(new Option(source.name, source.id));
-  if (sources.some(source => source.id === selectedSource)) select.value = selectedSource;
-  else if (sources.length === 1) select.value = sources[0].id;
-  select.disabled = false;
-  $('#discovery-scan').disabled = !select.value;
-  $('#discovery-docker-badge').textContent = 'Configured';
-  $('#discovery-docker-ready').hidden = false;
-  if (discoveryState?.setup?.method === 'docker' && discoveryState.step === 'find') discoveryState.setup = null;
-  $('#discovery-docker-setup').hidden = true;
-  $('#discovery-docker-error').hidden = true;
-  discoveryState.dockerRetry = null;
-  if (updateStatus && discoveryState?.method === 'docker') setDiscoveryStatus(sources.length === 1 ? `${sources[0].name} is configured.` : 'Choose a Docker server.');
-}
-
-async function loadDiscoverySources(preserveStatus = false, expectedState = discoveryState) {
-  if (!expectedState || discoveryState !== expectedState) return false;
-  expectedState.sourcesController?.abort();
-  const state = expectedState;
-  state.dockerSourcesStatus = 'loading';
-  const controller = new AbortController();
-  state.sourcesController = controller;
-  const request = { state, controller, apiToken, actionToken: state.requestToken };
-  if (!preserveStatus && expectedState.method === 'docker') setDiscoveryStatus('Checking Docker hosts…');
-  $('#discovery-docker-badge').textContent = 'Checking';
-  const hadSources = state.sources.length > 0;
-  $('#discovery-docker-ready').hidden = !hadSources;
-  if (!state.setup) $('#discovery-docker-setup').hidden = true;
-  $('#discovery-docker-error').hidden = true;
-  $('#discovery-source').disabled = true;
-  $('#discovery-scan').disabled = true;
-  try {
-    const response = await discoveryFetch('/api/discovery/sources', { signal: controller.signal }, request.apiToken);
-    if (response.status === 401) {
-      if (metadataRequestCurrent(request, 'sourcesController')) {
-        state.dockerSourcesStatus = 'error';
-        state.pendingAuthToken = state.requestToken;
-        requestDiscoveryUnlock({ state, token: state.requestToken, controller: state.controller });
-      }
-      return false;
-    }
-    if (response.status === 403) throw new Error('Discovery access is blocked. Add this browser hostname or IP to ATLAS_ALLOWED_HOSTS.');
-    if (!response.ok) throw new Error(`Collectors could not be loaded (${response.status}).`);
-    const sources = await boundedResponseJSON(response);
-    if (!Array.isArray(sources) || sources.length > 16 || sources.some(source => !source || Object.keys(source).length !== 2 || typeof source.id !== 'string' || typeof source.name !== 'string')) throw new Error('The server returned an invalid collector list.');
-    if (!metadataRequestCurrent(request, 'sourcesController')) return false;
-    state.dockerSourcesStatus = 'loaded';
-    state.sources = sources;
-    fillDiscoverySources(sources, !preserveStatus && state.requestToken === request.actionToken);
-    return true;
-  } catch (error) {
-    if (error.name === 'AbortError' || !metadataRequestCurrent(request, 'sourcesController')) return false;
-    state.dockerSourcesStatus = 'error';
-    if (state.sources.length) fillDiscoverySources(state.sources, false);
-    else {
-      $('#discovery-source').replaceChildren(new Option('No configured servers loaded', ''));
-      $('#discovery-source').disabled = true;
-      $('#discovery-scan').disabled = true;
-    }
-    $('#discovery-docker-badge').textContent = 'Check failed';
-    $('#discovery-docker-ready').hidden = !state.sources.length;
-    showDockerError(error.message, 'sources');
-    if (!preserveStatus && state.requestToken === request.actionToken && state.method === 'docker' && state.step === 'find' && !state.authRequired) setDiscoveryStatus('');
-    return false;
-  } finally {
-    if (metadataRequestCurrent(request, 'sourcesController')) state.sourcesController = null;
-  }
-}
-
-async function refreshDiscoveryMetadata(state) {
-  if (!state || discoveryState !== state || !$('#discovery-dialog').open) return false;
-  const results = await Promise.all([loadDiscoverySources(true, state), loadNmapStatus(state)]);
-  return results.every(Boolean);
-}
-
-function discoveryDestination() {
-  const value = $('#discovery-device').value;
-  return value && value !== '__new' ? project.devices.find(device => device.id === value) : null;
-}
-
-function updateDiscoveryDestination(resetActions = false, preferredGroup = '') {
-  if (!discoveryState?.snapshot) return;
-  const deviceValue = $('#discovery-device').value;
-  const newDevice = deviceValue === '__new';
-  const device = discoveryDestination();
-  $('#discovery-new-device-field').hidden = !newDevice;
-  $('#discovery-group-field').hidden = false;
-  const group = $('#discovery-group');
-  if (device) {
-    group.replaceChildren(new Option('New group · Discovered services', '__new'));
-    for (const item of device.groups) group.add(new Option(item.name, item.id));
-    const suggested = suggestDiscoveryGroup(device);
-    group.value = [...group.options].some(option => option.value === preferredGroup) ? preferredGroup : (suggested || '__new');
-  } else {
-    group.replaceChildren(new Option('New group · Discovered services', '__new'));
-  }
-  $('#discovery-new-group-field').hidden = !(newDevice || group.value === '__new');
-  $('#discovery-group-description').textContent = group.selectedOptions[0]?.textContent ? `· ${group.selectedOptions[0].textContent}` : '';
-  if (resetActions) for (const choice of discoveryState.choices.values()) {
-    choice.selected = false;
-    choice.serviceId = undefined;
-  }
-  renderDiscoveryFindings();
-}
-
-function renderDiscoveryFindings() {
-  if (!discoveryState?.snapshot) return;
-  const root = $('#discovery-findings');
-  const device = discoveryDestination();
-  const newDevice = $('#discovery-device').value === '__new';
-  const services = device ? device.groups.flatMap(group => group.services.map(service => ({
-    id: service.id, label: `Link · ${group.name} · ${service.name}`,
-  }))) : [];
-  const serviceLabels = new Map(services.map(service => [service.id, service.label]));
-  const filtered = filterDiscoveryFindings(discoveryState.snapshot.findings, discoveryState.query);
-  const pages = Math.max(1, Math.ceil(filtered.length / DISCOVERY_PAGE_SIZE));
-  discoveryState.page = Math.min(discoveryState.page, pages - 1);
-  const start = discoveryState.page * DISCOVERY_PAGE_SIZE;
-  const visible = filtered.slice(start, start + DISCOVERY_PAGE_SIZE);
-  $('#discovery-range').textContent = filtered.length ? `${start + 1}–${start + visible.length} of ${filtered.length}` : '0 of 0';
-  $('#discovery-previous').disabled = discoveryState.page === 0;
-  $('#discovery-next').disabled = start + visible.length >= filtered.length;
-  root.replaceChildren(...visible.map(item => {
-    const binding = discoveryBinding(project, discoveryState.snapshot.source.id, item.key);
-    const choice = discoveryState.choices.get(item.key);
-    const hostFinding = item.kind === 'host';
-    if (choice.serviceId === undefined) choice.serviceId = hostFinding ? null : device ? suggestDiscoveryService(item, device) : null;
-    if (newDevice) choice.serviceId = null;
-    if (binding) choice.selected = false;
-    const row = document.createElement('article');
-    row.className = `discovery-finding${item.stopped ? ' has-stopped' : ''}${binding ? ' bound' : ''}`;
-    const checkLabel = document.createElement('label');
-    checkLabel.className = 'discovery-check';
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = choice.selected;
-    checkbox.disabled = Boolean(binding);
-    checkbox.setAttribute('aria-label', `Select ${item.name}`);
-    checkbox.addEventListener('change', () => { choice.selected = checkbox.checked; updateDiscoveryPlan(); });
-    checkLabel.append(checkbox);
-    const logoId = matchDiscoveryLogo(item);
-    const logo = document.createElement('img');
-    logo.className = `discovery-logo ${logoPlateClass(logoId)}`;
-    logo.src = logoSource(logoId);
-    logo.alt = '';
-    checkLabel.append(logo);
-    const identity = document.createElement('div');
-    identity.className = 'discovery-identity';
-    const heading = document.createElement('strong');
-    heading.textContent = item.name;
-    const nmapEndpoint = !hostFinding && discoveryState.snapshot.format === 'homelab-atlas.nmap-discovery';
-    const detail = document.createElement('span');
-    detail.textContent = hostFinding ? 'Device card' : nmapEndpoint
-      ? `${item.protocol.toUpperCase()} port ${item.port}${item.service ? ` · ${item.service}` : ' · unidentified'}`
-      : `${item.running} running · ${item.stopped} stopped${item.ports.length ? ` · ${item.ports.slice(0, 2).join(', ')}` : ''}`;
-    const status = document.createElement('small');
-    status.textContent = hostFinding ? 'Adds or links this device card' : item.count ? `${item.count} ${item.count === 1 ? 'container' : 'containers'}` : [item.product, item.version, item.tunnel].filter(Boolean).join(' · ') || 'Unknown service';
-    identity.append(heading, detail);
-    if (!nmapEndpoint) identity.append(status);
-    const action = document.createElement('div');
-    action.className = 'discovery-target';
-    const actionLabel = document.createElement('span');
-    actionLabel.textContent = binding ? `Already on diagram · ${discoveryBindingLabel(project, binding)}`
-      : choice.serviceId && serviceLabels.has(choice.serviceId) ? `Use existing ${serviceLabels.get(choice.serviceId).replace(/^Link · [^·]+ · /, '')}`
-      : hostFinding ? (device ? `Use device card ${device.name}` : 'Add a new device card') : 'Add as a new service';
-    const select = document.createElement('select');
-    select.setAttribute('aria-label', `Action for ${item.name}`);
-    select.add(new Option(hostFinding ? (device ? 'Link host to this card' : 'Add host card') : 'Add new service', '__add'));
-    if (choice.serviceId && serviceLabels.has(choice.serviceId)) select.add(new Option(serviceLabels.get(choice.serviceId), choice.serviceId));
-    select.value = choice.serviceId || '__add';
-    select.hidden = hostFinding || Boolean(binding) || newDevice || !device;
-    const populateOptions = () => {
-      if (select.dataset.populated || select.disabled) return;
-      const selected = select.value;
-      select.replaceChildren(new Option('Add new service', '__add'));
-      for (const service of services) select.add(new Option(service.label, service.id));
-      select.value = selected;
-      select.dataset.populated = 'true';
-    };
-    select.addEventListener('focus', populateOptions);
-    select.addEventListener('pointerdown', populateOptions);
-    select.addEventListener('change', () => { choice.serviceId = select.value === '__add' ? null : select.value; renderDiscoveryFindings(); });
-    if (!select.hidden) {
-      const change = document.createElement('button');
-      change.type = 'button';
-      change.textContent = 'Change';
-      change.setAttribute('aria-label', `Change target for ${item.name}`);
-      change.addEventListener('click', () => { populateOptions(); select.hidden = false; select.focus(); change.hidden = true; });
-      select.hidden = true;
-      action.append(actionLabel, change, select);
-    } else action.append(actionLabel);
-    checkLabel.append(identity);
-    const technical = document.createElement('details');
-    technical.className = 'discovery-technical';
-    const technicalSummary = document.createElement('summary');
-    technicalSummary.textContent = 'Technical details';
-    const technicalText = document.createElement('p');
-    technicalText.textContent = hostFinding ? discoveryState.snapshot.host?.addresses.join(', ') || 'No address details'
-      : nmapEndpoint ? [item.product, item.version, item.tunnel].filter(Boolean).join(' · ') || 'No additional detection metadata'
-      : [item.image || 'Image name unavailable', item.composeProject, item.composeService].filter(Boolean).join(' · ');
-    technical.append(technicalSummary, technicalText);
-    row.append(checkLabel, action, technical);
-    return row;
-  }));
-  updateDiscoveryPlan();
-}
-
-function updateDiscoveryPlan() {
-  if (!discoveryState?.snapshot) return;
-  discoveryState.plan = null;
-  $('#discovery-apply').disabled = true;
-  const summary = $('#discovery-summary');
-  summary.classList.remove('error');
-  if (discoveryState.stale || !projectGuardCurrent(discoveryState.guard, project)) return invalidateDiscoveryIfStale();
-  const choices = [...discoveryState.choices.entries()].filter(([, choice]) => choice.selected).map(([key, choice]) => ({ key, serviceId: choice.serviceId ?? null }));
-  if (!choices.length) {
-    summary.textContent = `0 selected. Choose what to add; existing card positions will be kept.`;
-    return;
-  }
-  const deviceValue = $('#discovery-device').value;
-  if (!deviceValue) {
-    summary.textContent = 'Choose a destination device.';
-    return;
-  }
-  const serviceAdditions = choices.some(choice => choice.serviceId === null && !choice.key.startsWith('nmap-host:'));
-  const groupValue = $('#discovery-group').value;
-  if (deviceValue !== '__new' && serviceAdditions && !groupValue) {
-    summary.textContent = 'Choose an existing service group or a new group.';
-    return;
-  }
-  try {
-    const plan = planDiscoveryMerge(project, discoveryState.snapshot, {
-      deviceId: deviceValue === '__new' ? null : deviceValue,
-      newDeviceName: $('#discovery-new-device').value,
-      groupId: groupValue === '__new' || deviceValue === '__new' ? null : groupValue,
-      newGroupName: $('#discovery-new-group').value,
-      choices,
-    });
-    discoveryState.plan = plan;
-    const destination = deviceValue === '__new' ? $('#discovery-new-device').value.trim() || discoveryState.snapshot.source.name : discoveryDestination().name;
-    const parts = [`${choices.length} selected across all pages`, `${quantity(plan.summary.added, 'service')} to add`, `${quantity(plan.summary.linked, 'service')} to link`, `destination: ${destination}`];
-    if (plan.summary.hosts) parts.push(quantity(plan.summary.hosts, 'device card'));
-    if (plan.summary.newDevice) parts.push(`new device “${plan.project.devices.at(-1).name}”`);
-    if (plan.summary.newGroup) parts.push('new service group');
-    if (plan.summary.heightChanges.length) parts.push('the destination card will grow; its position stays fixed');
-    summary.textContent = parts.join(' · ');
-    $('#discovery-apply').disabled = false;
-  } catch (error) {
-    summary.textContent = error.message;
-    summary.classList.add('error');
-  }
-}
-
-function saveDiscoveryReview() {
-  if (!discoveryState?.snapshot) return;
-  discoveryState.reviewCache.set(discoveryState.snapshot.source.id, {
-    choices: structuredClone(discoveryState.choices), query: discoveryState.query, page: discoveryState.page,
-    device: $('#discovery-device').value, deviceName: $('#discovery-new-device').value,
-    group: $('#discovery-group').value, groupName: $('#discovery-new-group').value,
-  });
-}
-
-function showDiscoverySnapshot(value, message, restore = true) {
-  validateDiscoverySnapshot(value);
-  if (restore) saveDiscoveryReview();
-  if (!value.findings.length) {
-    setDiscoveryStep('find', true);
-    setDiscoveryStatus('No Docker apps were found. Check the selected host or snapshot, then try again.', true);
-    return;
-  }
-  discoveryState.snapshot = structuredClone(value);
-  const cached = restore ? discoveryState.reviewCache.get(value.source.id) : null;
-  discoveryState.choices = cached?.choices || new Map(value.findings.map(item => [item.key, { selected: false, serviceId: undefined }]));
-  discoveryState.plan = null;
-  discoveryState.query = cached?.query || '';
-  discoveryState.page = cached?.page || 0;
-  $('#discovery-search').value = discoveryState.query;
-  setDiscoveryStep('review', true);
-  const nmap = value.format === 'homelab-atlas.nmap-discovery';
-  $('#discovery-result-source').textContent = nmap && discoveryState.bundle ? `${discoveryState.bundle.scope} · ${value.source.name}` : value.source.name;
-  $('#discovery-result-time').textContent = `Scanned ${new Date(value.scannedAt).toLocaleString()}`;
-  const multiple = nmap && discoveryState.bundle?.snapshots.length > 1;
-  $('#discovery-host-navigation').hidden = !multiple;
-  if (multiple) {
-    const index = discoveryState.bundle.snapshots.findIndex(snapshot => snapshot.source.id === value.source.id);
-    $('#discovery-host').value = String(index);
-    $('#discovery-host-count').textContent = `${index + 1} of ${discoveryState.bundle.snapshots.length}`;
-    $('#discovery-host-previous').disabled = index === 0;
-    $('#discovery-host-next').disabled = index === discoveryState.bundle.snapshots.length - 1;
-  }
-  $('#discovery-host-meta').hidden = !nmap;
-  $('#discovery-host-meta').textContent = nmap ? [`Addresses: ${value.host.addresses.join(', ')}`, value.host.hostnames.length ? `Names: ${value.host.hostnames.join(', ')}` : '', value.host.vendor ? `Vendor: ${value.host.vendor}` : ''].filter(Boolean).join(' · ') : '';
-  const device = $('#discovery-device');
-  device.replaceChildren(new Option(`New device card · ${value.source.name}`, '__new'));
-  for (const item of project.devices) device.add(new Option(item.name, item.id));
-  const suggested = suggestDiscoveryDestination(project, value);
-  device.value = cached?.device && [...device.options].some(option => option.value === cached.device) ? cached.device : (suggested || '__new');
-  $('#discovery-new-device').value = cached?.deviceName || value.source.name;
-  $('#discovery-new-group').value = cached?.groupName || 'Discovered services';
-  updateDiscoveryDestination(false, cached?.group);
-  setDiscoveryStatus(message);
-}
-
-async function scanDiscoverySource() {
-  if (!discoveryState || !projectGuardCurrent(discoveryState.guard, project)) return invalidateDiscoveryIfStale();
-  const sourceId = $('#discovery-source').value;
-  if (!sourceId) return setDiscoveryStatus('Choose a collector first.', true);
-  const request = beginDiscoveryRequest('Scanning Docker…', true);
-  try {
-    const response = await discoveryFetch('/api/discovery/scan', {
-      method: 'POST', signal: request.controller.signal,
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceId }),
-    });
-    if (response.status === 401) {
-      if (!discoveryRequestCurrent(request)) return;
-      request.state.pendingDockerSource = sourceId;
-      request.state.pendingAuthToken = request.token;
-      return requestDiscoveryUnlock(request);
-    }
-    if (!response.ok) {
-      const detail = await boundedResponseText(response);
-      if (response.status === 403) throw new Error('This browser address is not allowed by the Atlas server. Check ATLAS_ALLOWED_HOSTS.');
-      if (response.status === 502) throw new Error(`The Docker collector could not be reached.${detail ? ` ${detail}` : ''}`);
-      if ([408, 504].includes(response.status)) throw new Error('The Docker collector timed out. Check its connection and try again.');
-      throw new Error(`Docker discovery failed (${response.status}).${detail ? ` ${detail}` : ''}`);
-    }
-    const value = await boundedResponseJSON(response);
-    validateDiscoverySnapshot(value);
-    if (value.source.id !== sourceId) throw new Error('The collector returned a different source identity.');
-    if (!discoveryRequestCurrent(request)) return;
-    discoveryState.reviewCache.clear();
-    showDiscoverySnapshot(value, `Scan complete: ${quantity(value.findings.length, 'finding')}.`, false);
-    return true;
-  } catch (error) {
-    if (error.name === 'AbortError' || !discoveryRequestCurrent(request)) return;
-    if (/collector|Docker host/i.test(error.message)) {
-      $('#discovery-docker-badge').textContent = 'Check failed';
-      $('#discovery-docker-ready').hidden = false;
-      showDockerError(error.message, 'scan');
-      setDiscoveryStatus('');
-    } else setDiscoveryStatus(error.message, true);
-    return false;
-  }
-}
-
-function showNmapBundle(bundle, label) {
-  validateNmapBundle(bundle);
-  discoveryState.reviewCache.clear();
-  discoveryState.bundle = structuredClone(bundle);
-  const hostSelect = $('#discovery-host');
-  hostSelect.replaceChildren(...bundle.snapshots.map((snapshot, index) => new Option(`${snapshot.source.name} · ${snapshot.host.addresses.join(', ')}`, String(index))));
-  if (!bundle.snapshots.length) {
-    setDiscoveryStep('find');
-    setDiscoveryStatus('No reachable devices were found. Check the address, route, and firewall, then try again.', true,
-      `${label}: ${quantity(bundle.skippedHosts, 'host')} and ${quantity(bundle.skippedPorts, 'port')} were not imported.`);
-    return;
-  }
-  showDiscoverySnapshot(bundle.snapshots[0], `${label}: ${quantity(bundle.snapshots.length, 'host')}. ${quantity(bundle.skippedHosts, 'host')} and ${quantity(bundle.skippedPorts, 'port')} were not imported.`, false);
-}
-
-function currentNetworkRequest() {
-  const preset = $('#discovery-port-preset').value;
-  return {
-    scope: $('#discovery-scope').value,
-    targets: $('#discovery-targets').value,
-    ports: preset === 'homelab' ? HOMELAB_PORTS : preset === 'common' ? '' : $('#discovery-ports').value,
-    detectServices: $('#discovery-detect-services').checked,
-  };
-}
-
-async function scanNmapNetwork(retry = null) {
-  if (!discoveryState || !projectGuardCurrent(discoveryState.guard, project)) {
-    invalidateDiscoveryIfStale();
-    return false;
-  }
-  const input = retry || currentNetworkRequest();
-  if (!input.targets.trim()) {
-    $('#discovery-targets').setAttribute('aria-invalid', 'true');
-    $('#discovery-targets').focus();
-    setDiscoveryStatus('Enter a device IP address or network range.', true);
-    return false;
-  }
-  const request = beginDiscoveryRequest('Finding devices… This can take up to two minutes.', true);
-  request.input = structuredClone(input);
-  setNetworkScanning(true, request);
-  try {
-    const response = await discoveryFetch('/api/discovery/nmap/scan', {
-      method: 'POST', signal: request.controller.signal,
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
-    });
-    if (response.status === 401) {
-      if (!discoveryRequestCurrent(request)) return false;
-      request.state.pendingNetworkScan = structuredClone(input);
-      request.state.pendingAuthToken = request.token;
-      setNetworkScanning(false, request);
-      requestDiscoveryUnlock(request);
-      return false;
-    }
-    if (!response.ok) throw new Error((await boundedResponseText(response)) || `Network scan failed (${response.status}).`);
-    const bundle = await boundedResponseJSON(response);
-    validateNmapBundle(bundle);
-    if (!discoveryRequestCurrent(request)) return;
-    hideDiscoveryAuth();
-    discoveryState.pendingNetworkScan = null;
-    showNmapBundle(bundle, 'Network scan complete');
-    return true;
-  } catch (error) {
-    if (error.name === 'AbortError' || !discoveryRequestCurrent(request)) return false;
-    setDiscoveryStatus(error.message, true);
-    return false;
-  } finally {
-    setNetworkScanning(false, request);
-  }
-}
-
-async function importNmapXML(file) {
-  if (!file || !discoveryState || !projectGuardCurrent(discoveryState.guard, project)) return false;
-  const scope = $('#discovery-import-scope').value;
-  const request = beginDiscoveryRequest('Parsing Nmap XML…', true);
-  discoveryState.pendingNmapFile = file;
-  try {
-    if (file.size > 2_000_000) throw new Error('Nmap XML is larger than 2 MB.');
-    const response = await discoveryFetch(`/api/discovery/nmap?scope=${encodeURIComponent(scope)}`, {
-      method: 'POST', signal: request.controller.signal, headers: { 'Content-Type': 'application/xml' }, body: file,
-    });
-    if (response.status === 401) {
-      if (!discoveryRequestCurrent(request)) return false;
-      request.state.pendingAuthToken = request.token;
-      requestDiscoveryUnlock(request);
-      return false;
-    }
-    if (!response.ok) throw new Error(`Nmap import failed (${response.status}). Check the XML and network name.`);
-    const bundle = await boundedResponseJSON(response);
-    if (!discoveryRequestCurrent(request)) return;
-    hideDiscoveryAuth();
-    discoveryState.pendingNmapFile = null;
-    showNmapBundle(bundle, 'Nmap import loaded');
-    return true;
-  } catch (error) {
-    if (error.name === 'AbortError' || !discoveryRequestCurrent(request)) return false;
-    discoveryState.pendingNmapFile = null;
-    setDiscoveryStatus(error.message, true);
-    return false;
-  }
-}
-
-async function importDiscoverySnapshot(file) {
-  if (!file || !discoveryState || !projectGuardCurrent(discoveryState.guard, project)) return;
-  const request = beginDiscoveryRequest('Reading snapshot…', true);
-  try {
-    if (file.size > 2_000_000) throw new Error('Snapshot is larger than 2 MB.');
-    const value = parseDiscoverySnapshot(await file.text());
-    if (!discoveryRequestCurrent(request)) return;
-    discoveryState.reviewCache.clear();
-    showDiscoverySnapshot(value, `Snapshot loaded: ${quantity(value.findings.length, 'finding')}.`, false);
-  } catch (error) {
-    if (error.name === 'AbortError' || !discoveryRequestCurrent(request)) return;
-    setDiscoveryStatus(error.message, true);
-  }
-}
-
-function openDiscovery(opener) {
-  discoveryState?.controller?.abort();
-  discoveryState?.sourcesController?.abort();
-  discoveryState?.statusController?.abort();
-  discoveryState = { guard: captureProjectGuard(project), opener, step: 'choose', method: null, sources: [], dockerSourcesStatus: 'unknown', nmapStatus: null, setup: null, dockerRetry: null, bundle: null, reviewCache: new Map(), pendingDockerSource: null, pendingNmapFile: null, pendingNetworkScan: null, pendingAuthToken: null, statusBeforeAuth: null, snapshot: null, choices: new Map(), plan: null, controller: null, sourcesController: null, statusController: null, activeNetworkToken: null, requestToken: null, stale: false, applying: false, authRequired: false, query: '', page: 0 };
-  $('#discovery-source').replaceChildren(new Option('Loading sources…', ''));
-  $('#discovery-device').replaceChildren(new Option('Choose a device…', ''));
-  $('#discovery-findings').replaceChildren();
-  $('#discovery-summary').textContent = '';
-  $('#discovery-search').value = '';
-  hideDiscoveryAuth();
-  $('#discovery-range').textContent = '';
-  $('#discovery-previous').disabled = true;
-  $('#discovery-next').disabled = true;
-  $('#discovery-apply').disabled = true;
-  $('#discovery-file').value = '';
-  $('#discovery-nmap-file').value = '';
-  $('#discovery-host-navigation').hidden = true;
-  $('#discovery-network-start').disabled = true;
-  $('#discovery-port-preset').value = 'homelab';
-  $('#discovery-ports').value = '';
-  $('#discovery-custom-ports').hidden = true;
-  $('#discovery-detect-services').checked = true;
-  $('#discovery-docker-badge').textContent = 'Checking';
-  $('#discovery-network-badge').textContent = 'Checking';
-  $('#discovery-docker-ready').hidden = true;
-  $('#discovery-docker-setup').hidden = true;
-  $('#discovery-docker-error').hidden = true;
-  $('#discovery-network-ready').hidden = true;
-  $('#discovery-network-setup').hidden = true;
-  $('#discovery-network-error').hidden = true;
-  setNetworkScanning(false);
-  $('#discovery-dialog').showModal();
-  setDiscoveryStep('choose');
-  setDiscoveryStatus('');
-  loadDiscoverySources();
-  loadNmapStatus();
-}
-
-async function unlockDiscoverySources() {
-  if (!discoveryState || discoveryState.unlocking || !$('#discovery-dialog').open || !projectGuardCurrent(discoveryState.guard, project)) return;
-  const state = discoveryState;
-  const token = $('#discovery-api-token').value;
-  if (!token) return setDiscoveryStatus('Enter the API token first.', true);
-  apiToken = token;
-  const retryCurrent = state.pendingAuthToken === state.requestToken;
-  const pendingDocker = retryCurrent && state.method === 'docker' && state.pendingDockerSource === $('#discovery-source').value ? state.pendingDockerSource : null;
-  const pendingFile = retryCurrent ? state.pendingNmapFile : null;
-  const pendingScan = retryCurrent && state.pendingNetworkScan
-    && JSON.stringify(state.pendingNetworkScan) === JSON.stringify(currentNetworkRequest()) ? state.pendingNetworkScan : null;
-  const hadReview = Boolean(state.snapshot);
-  const statusBeforeAuth = state.statusBeforeAuth;
-  state.unlocking = true;
-  state.pendingAuthToken = null;
-  state.pendingDockerSource = null;
-  state.pendingNmapFile = null;
-  state.pendingNetworkScan = null;
-  $('#discovery-unlock').disabled = true;
-  hideDiscoveryAuth(false);
-  try {
-    let success = true;
-    if (pendingDocker) success = await scanDiscoverySource();
-    else if (pendingFile) success = await importNmapXML(pendingFile);
-    else if (pendingScan) success = await scanNmapNetwork(pendingScan);
-    if (success && discoveryState === state) {
-      const actionToken = state.requestToken;
-      const ready = await refreshDiscoveryMetadata(state);
-      if (ready && discoveryState === state && state.requestToken === actionToken) {
-        state.authRequired = false;
-        hideDiscoveryAuth();
-        if (!pendingDocker && !pendingFile && !pendingScan) setDiscoveryStatus(hadReview && statusBeforeAuth ? statusBeforeAuth : 'Discovery is ready.');
-        state.statusBeforeAuth = null;
-      }
-    }
-  } finally {
-    if (discoveryState === state) {
-      state.unlocking = false;
-      $('#discovery-unlock').disabled = false;
-    }
-  }
-}
-
-$('#discover-docker').addEventListener('click', event => openDiscovery(event.currentTarget));
-document.querySelectorAll('[data-discovery-method]').forEach(button => button.addEventListener('click', () => chooseDiscoveryMethod(button.dataset.discoveryMethod)));
-$('#discovery-back').addEventListener('click', showDiscoveryChooser);
-$('#discovery-start-over').addEventListener('click', showDiscoveryChooser);
-$('#discovery-check-docker').addEventListener('click', () => loadDiscoverySources(false));
-$('#discovery-retry-docker').addEventListener('click', () => discoveryState?.dockerRetry === 'scan' ? scanDiscoverySource() : loadDiscoverySources(false));
-$('#discovery-retry-network').addEventListener('click', () => loadNmapStatus());
-$('#discovery-dialog').addEventListener('click', async event => {
-  const button = event.target.closest('button');
-  if (!button) return;
-  if (button.dataset.openSetup) return openDiscoverySetup(button.dataset.openSetup);
-  if (button.id === 'discovery-connect-docker') return openDiscoverySetup('docker');
-  if (button.dataset.setupImport) {
-    chooseDiscoveryMethod('import');
-    return (button.dataset.setupImport === 'docker' ? $('#discovery-file') : $('#discovery-nmap-file')).click();
-  }
-  if (button.dataset.setupCheck) return button.dataset.setupCheck === 'docker' ? loadDiscoverySources(false) : loadNmapStatus();
-  const setup = discoveryState?.setup;
-  if (button.hasAttribute('data-setup-back') && setup) {
-    if (!setup.index) return closeDiscoverySetup();
-    setup.feedback = '';
-    setup.index -= 1;
-    return renderDiscoverySetup();
-  }
-  if (button.hasAttribute('data-setup-next') && setup) {
-    const selected = $(`#discovery-${setup.method}-setup input[name="setup-choice"]:checked`);
-    if (selected) setup.answers = updateDiscoverySetupAnswers(setup.answers, selected.dataset.setupAnswer, selected.value);
-    setup.feedback = '';
-    setup.index += 1;
-    return renderDiscoverySetup();
-  }
-  if (!button.hasAttribute('data-copy-command')) return;
-  const command = button.parentElement.querySelector('code').textContent;
-  try {
-    await navigator.clipboard.writeText(command);
-    button.textContent = 'Copied';
-    setTimeout(() => { button.textContent = 'Copy'; }, 1500);
-  } catch {
-    button.parentElement.querySelector('code').tabIndex = 0;
-    button.parentElement.querySelector('code').focus();
-    setDiscoveryStatus('Copy failed. Select the command text and copy it manually.', true);
-  }
-});
-$('#discovery-dialog').addEventListener('change', event => {
-  if (event.target.matches('[data-setup-answer]')) event.target.closest('.discovery-wizard').querySelector('[data-setup-next]').disabled = false;
-});
-$('#discovery-source').addEventListener('change', () => {
-  if (!discoveryState) return;
-  discoveryState.dockerRetry = null;
-  $('#discovery-docker-error').hidden = true;
-  $('#discovery-scan').disabled = !$('#discovery-source').value;
-  beginDiscoveryRequest('Docker host changed. Choose Find Docker apps to continue.', true);
-});
-$('#discovery-scope').addEventListener('change', () => {
-  if (!discoveryState) return;
-  $('#discovery-import-scope').value = $('#discovery-scope').value;
-  beginDiscoveryRequest('Network name changed. Choose Find devices to continue.', true);
-});
-$('#discovery-import-scope').addEventListener('change', () => {
-  if (!discoveryState) return;
-  $('#discovery-scope').value = $('#discovery-import-scope').value;
-  beginDiscoveryRequest('Import scope changed. Choose the Nmap XML file again.', true);
-});
-for (const id of ['discovery-targets', 'discovery-port-preset', 'discovery-ports', 'discovery-detect-services']) $(`#${id}`).addEventListener('input', () => {
-  if (!discoveryState) return;
-  if (id === 'discovery-targets') {
-    $('#discovery-targets').removeAttribute('aria-invalid');
-    $('#discovery-network-start').disabled = !discoveryState.nmapStatus?.available || !$('#discovery-targets').value.trim();
-  }
-  if (id === 'discovery-port-preset') $('#discovery-custom-ports').hidden = $('#discovery-port-preset').value !== 'custom';
-  discoveryState.pendingNetworkScan = null;
-  beginDiscoveryRequest('Scan settings changed. Choose Find devices to start.', true);
-  setNetworkScanning(false);
-});
-$('#discovery-scan').addEventListener('click', scanDiscoverySource);
-$('#discovery-network-start').addEventListener('click', () => scanNmapNetwork());
-$('#discovery-network-stop').addEventListener('click', () => {
-  if (!discoveryState) return;
-  discoveryState.controller?.abort();
-  discoveryState.requestToken = Symbol('stopped-scan');
-  discoveryState.pendingNmapFile = null;
-  discoveryState.pendingNetworkScan = null;
-  discoveryState.pendingDockerSource = null;
-  discoveryState.pendingAuthToken = null;
-  setNetworkScanning(false);
-  setDiscoveryStatus('Network scan stopped. No results were loaded.');
-});
-$('#discovery-import').addEventListener('click', () => {
-  if (discoveryState) beginDiscoveryRequest('Choose a saved snapshot to import.', true);
-  $('#discovery-file').click();
-});
-$('#discovery-file').addEventListener('change', event => {
-  const file = event.target.files[0];
-  event.target.value = '';
-  importDiscoverySnapshot(file);
-});
-$('#discovery-nmap-import').addEventListener('click', () => {
-  if (discoveryState) beginDiscoveryRequest('Choose Nmap XML to import.', true);
-  $('#discovery-nmap-file').click();
-});
-$('#discovery-nmap-file').addEventListener('change', event => {
-  const file = event.target.files[0];
-  event.target.value = '';
-  importNmapXML(file);
-});
-$('#discovery-host').addEventListener('change', event => {
-  const snapshot = discoveryState?.bundle?.snapshots[Number(event.target.value)];
-  if (snapshot) showDiscoverySnapshot(snapshot, 'Review choices for this device are preserved while this scan stays open.');
-});
-for (const [id, offset] of [['discovery-host-previous', -1], ['discovery-host-next', 1]]) $(`#${id}`).addEventListener('click', () => {
-  const index = Number($('#discovery-host').value) + offset;
-  const snapshot = discoveryState?.bundle?.snapshots[index];
-  if (snapshot) showDiscoverySnapshot(snapshot, 'Review choices for this device are preserved while this scan stays open.');
-});
-$('#discovery-unlock').addEventListener('click', unlockDiscoverySources);
-$('#discovery-api-token').addEventListener('keydown', event => {
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    unlockDiscoverySources();
-  }
-});
-$('#discovery-device').addEventListener('change', () => {
-  updateDiscoveryDestination(true);
-  setDiscoveryStatus('Destination changed. Selections and actions were reset.');
-});
-$('#discovery-group').addEventListener('change', () => {
-  $('#discovery-new-group-field').hidden = $('#discovery-group').value !== '__new';
-  $('#discovery-group-description').textContent = `· ${$('#discovery-group').selectedOptions[0]?.textContent || 'New group'}`;
-  updateDiscoveryPlan();
-});
-for (const id of ['discovery-new-device', 'discovery-new-group']) $(`#${id}`).addEventListener('input', updateDiscoveryPlan);
-$('#discovery-search').addEventListener('input', event => {
-  if (!discoveryState?.snapshot) return;
-  discoveryState.query = event.target.value;
-  discoveryState.page = 0;
-  renderDiscoveryFindings();
-});
-$('#discovery-previous').addEventListener('click', () => {
-  if (!discoveryState?.snapshot || discoveryState.page === 0) return;
-  discoveryState.page -= 1;
-  renderDiscoveryFindings();
-});
-$('#discovery-next').addEventListener('click', () => {
-  if (!discoveryState?.snapshot) return;
-  discoveryState.page += 1;
-  renderDiscoveryFindings();
-});
-$('#discovery-select-visible').addEventListener('click', () => {
-  if (!discoveryState?.snapshot) return;
-  const filtered = filterDiscoveryFindings(discoveryState.snapshot.findings, discoveryState.query);
-  const visible = filtered.slice(discoveryState.page * DISCOVERY_PAGE_SIZE, (discoveryState.page + 1) * DISCOVERY_PAGE_SIZE);
-  const linked = visible.filter(item => discoveryBinding(project, discoveryState.snapshot.source.id, item.key)).map(item => item.key);
-  setVisibleDiscoverySelection(discoveryState.choices, visible.map(item => item.key), linked, true);
-  renderDiscoveryFindings();
-});
-$('#discovery-clear').addEventListener('click', () => {
-  if (!discoveryState?.snapshot) return;
-  for (const choice of discoveryState.choices.values()) choice.selected = false;
-  renderDiscoveryFindings();
-});
-$('#discovery-apply').addEventListener('click', () => {
-  const state = discoveryState;
-  if (!state?.plan || !projectGuardCurrent(state.guard, project)) return invalidateDiscoveryIfStale();
-  let applied = false;
-  state.applying = true;
-  try { applied = change(candidate => applyDiscoveryPlan(candidate, state.plan)); } finally { state.applying = false; }
-  if (applied) {
-    if (state.snapshot.format === 'homelab-atlas.nmap-discovery') {
-      state.guard = captureProjectGuard(project);
-      state.stale = false;
-      state.reviewCache.delete(state.snapshot.source.id);
-      showDiscoverySnapshot(state.snapshot, 'Added to the diagram. Undo is available; you can review another device or close.', false);
-      toast('Added to diagram. Undo is available.');
-    } else {
-      $('#discovery-dialog').close();
-      toast('Added to diagram. Undo is available.');
-    }
-  }
-});
-$('#discovery-form').addEventListener('submit', event => event.preventDefault());
-document.querySelectorAll('[data-discovery-close]').forEach(button => button.addEventListener('click', () => $('#discovery-dialog').close()));
-$('#discovery-dialog').addEventListener('close', () => {
-  const state = discoveryState;
-  state?.controller?.abort();
-  state?.sourcesController?.abort();
-  state?.statusController?.abort();
-  if (state) {
-    state.requestToken = Symbol('closed-dialog');
-    state.pendingNmapFile = null;
-    state.pendingNetworkScan = null;
-    state.pendingAuthToken = null;
-    setNetworkScanning(false);
-  }
-  discoveryState = null;
-  $('#discovery-file').value = '';
-  $('#discovery-nmap-file').value = '';
-  hideDiscoveryAuth();
-  if (state?.opener?.isConnected) state.opener.focus();
-});
-
 function closeFileMenu(restoreFocus = false) {
   const menu = $('#file-menu');
   if (!menu.open) return false;
@@ -1996,6 +939,16 @@ document.addEventListener('click', event => {
 $('#file-menu a').addEventListener('click', () => closeFileMenu());
 $('#sample').addEventListener('click', () => { closeFileMenu(); if (confirm('Replace this project with the example? You can undo afterward.')) replaceProject(sampleProject()); });
 $('#empty').addEventListener('click', () => { closeFileMenu(); if (confirm('Start empty? You can undo afterward.')) replaceProject(emptyProject()); });
+$('#save-default').addEventListener('click', () => {
+  const replacing = hasStoredDefault();
+  closeFileMenu();
+  if (replacing && !confirm('Replace the browser default project with this project?')) return;
+  saveDefaultProject();
+});
+$('#clear-default').addEventListener('click', () => {
+  closeFileMenu();
+  if (confirm('Clear the browser default project? The project open in this tab will not change.')) clearDefaultProject();
+});
 
 function undo() {
   if (!history.length) return;
@@ -2314,6 +1267,7 @@ $('#inventory-search').addEventListener('input', event => {
 
 addEventListener('storage', event => {
   if (event.key === STORAGE_KEY && hasStorageConflict(event.newValue, lastStored, TAB_ID)) showConflict(event.newValue);
+  if (event.key === DEFAULT_PROJECT_STORAGE_KEY || event.key === null) updateDefaultProjectActions();
 });
 $('#conflict-keep').addEventListener('click', () => saveProject(true));
 $('#conflict-load').addEventListener('click', async () => {

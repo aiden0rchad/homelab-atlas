@@ -8,6 +8,6 @@ Describe the affected version or commit, reproduction steps, impact, and any sug
 
 ## Security scope
 
-Homelab Atlas is a trusted-local web app served by one Go binary. It has no accounts or backend project store and is not designed for public exposure. Reports about import validation, browser storage boundaries, exports, static serving, discovery API authorization, collector isolation, Docker metadata sanitization, or container isolation are in scope. The GitHub Pages site hosts documentation only, not the editor.
+Homelab Atlas is a trusted-local web app served by one Go binary. It has no accounts or backend project store and is not designed for public exposure. Reports about import validation, browser storage boundaries, browser default projects, dashboard service links, exports, static serving, or container isolation are in scope. The GitHub Pages site hosts documentation only, not the editor.
 
-The normal editor container runs as uid 10001 and never mounts the Docker socket. Docker discovery is an optional, separate collector profile with a read-only socket mount, an internal-only network, a required token, no published port, dropped capabilities, and no write/control proxy. Keep both services on localhost or a trusted LAN. Use HTTPS for collectors reached across a network.
+The editor container runs as uid 10001 and never mounts the Docker socket. It serves only static editor and dashboard assets. Keep Atlas on localhost or a trusted LAN.

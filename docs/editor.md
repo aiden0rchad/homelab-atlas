@@ -1,12 +1,12 @@
 # Editor guide
 
-You enter your devices and services, and Atlas starts with an automatic layout. You can arrange device cards yourself when you need a specific composition.
+You enter your devices and services, and Atlas starts with an automatic layout. You can arrange device cards yourself when you need a specific composition. The same project also powers a read-only [dashboard](/dashboard) with clickable service links.
 
 <GuideFigure name="editor" />
 
 ## Start from a sample or empty project
 
-Open **File** and choose **Load example** to replace the current project with the included fictional sample, or **Start empty** for a blank project. Atlas asks before doing either one, and you can undo it until you reload the page. **Import project** opens editable JSON, and **Save project** downloads a JSON backup.
+Open **File** and choose **Load example** to replace the current project with the included fictional sample, or **Start empty** for a blank project. Atlas asks before doing either one, and you can undo it until you reload the page. **Import project** opens editable JSON, and **Save project** downloads a JSON backup. **Save as browser default** stores the current project as the fallback for this browser origin, and **Clear browser default** removes it. See [Dashboard and browser default](/dashboard).
 
 ## Add and organize devices
 
@@ -22,19 +22,7 @@ Select a device to open its inspector:
 - **Apps** covers named service groups and their services
 - **Layout** covers exact X, Y, Width, and Height position fields
 
-The duplicate button copies a device and gives the copy new internal IDs without copying discovery bindings. Use the arrow buttons to reorder devices or services. Deleting a device or network node also deletes its connections. Deleting a device, group, or service removes discovery bindings that point to it.
-
-## Discover devices
-
-Choose **Discover devices** at the bottom of the inventory, then choose Docker apps, Network devices / Nmap, or Import saved scan. Opening discovery checks readiness but never scans. Configured Docker servers go straight to the server picker; the one-screen-at-a-time setup appears only when configuration is missing. The Find step runs only after **Find Docker apps** or **Find devices**; importing a snapshot or XML runs no scanner or network probe.
-
-For live Nmap, enter allowed IPv4 targets and choose **Find devices**. **Advanced settings** contains the optional network name, port preset, custom TCP ports, and service identification. Select a device in multi-device results. The scope, host addresses, names, vendor, scan time, and ports not imported appear in Review. Reuse the same network name for later scans.
-
-Choose a **Destination diagram card** and service group. Every finding starts unchecked. Docker and Nmap endpoint rows can add a service or link to one already on the destination device. Nmap host rows add a host card or link the host identity to an existing card. Ping-only hosts therefore work without a fake service. Suggestions never check a row automatically.
-
-Linking keeps existing metadata and layout unchanged. Docker additions use the discovered name, logo match, and replica count. Nmap endpoint names include the detected product or service plus protocol and port. New Nmap cards persist bounded canonical IP addresses as hardware facts. Missing findings never delete existing services.
-
-The review summary shows additions, links, new cards/groups, and card-height changes. **Add selected to diagram** is disabled for an empty or invalid review. Adding the current device creates one undo step, and Nmap results stay open so another device can be reviewed. Canceling, pressing `Escape`, finding, or importing without choosing **Add selected to diagram** does not change the project. See [Discovery](/discovery) for setup, limits, and security boundaries.
+The duplicate button copies a device and gives the copy new internal IDs. Use the arrow buttons to reorder devices or services. Deleting a device or network node also deletes its connections.
 
 ## Add service tiles
 
@@ -47,6 +35,18 @@ Choose **Upload logo** in any picker to add a PNG, JPG, WebP, or SVG file up to 
 You can change a service name and set its instance count from 1 through 99. **Add custom service** still adds a named tile with the included generic icon.
 
 Groups with one or two services use readable horizontal rows. Groups with three or four services use a compact icon grid, and larger groups use a denser grid. Atlas keeps the service order you set.
+
+## Service links
+
+Each service can have an optional link in the device inspector's **Apps** tab. Leave the field empty for no link, or enter a complete URL beginning with `http://` or `https://`. Links are limited to 2,048 characters and cannot contain spaces. Invalid values are rejected when you leave the field.
+
+Links are used only by the [dashboard](/dashboard). They are stored in project JSON and browser storage, and they are deliberately omitted from SVG and PNG exports. Atlas does not check whether a link is reachable or open it in the background.
+
+## Dashboard and browser default
+
+Choose **Dashboard** in the top bar, or open `/dashboard`, for a read-only view of the project saved in this browser. Linked service tiles open in a new tab. The dashboard falls back to the browser default when no autosaved project exists, then to the included example. See [Dashboard and browser default](/dashboard) for details.
+
+Use **File → Save as browser default** to make the current project the starting point for this browser origin. The default is stored separately from autosave. When you open Atlas and no autosaved project exists, the default loads without immediately creating an autosave; your first edit does. **Clear browser default** removes it without changing the project currently open in the tab.
 
 ## Appearance
 

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#10131b"><title>Dashboard · Homelab Atlas</title><link rel="stylesheet" href="/dashboard.css"></head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/" aria-label="Homelab Atlas editor"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>Homelab Atlas</span></a>
+  <span class="topbar-mode">Dashboard</span>
+  <span id="dashboard-title" class="topbar-title">Home Lab</span>
+  <nav aria-label="Dashboard actions">
+    <span id="dashboard-status" class="status" role="status">Saved project</span>
+    <button id="refresh" type="button" title="Reload the saved project" aria-label="Refresh dashboard"><svg aria-hidden="true" viewBox="0 0 20 20"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 4v4h-4"/></svg><span>Refresh</span></button>
+    <a class="button primary" href="/" aria-label="Open editor" title="Open editor"><svg aria-hidden="true" viewBox="0 0 20 20"><path d="m4 16 9-9 3 3-9 9H4zM12 5l3 3"/></svg><span>Edit diagram</span></a>
+  </nav>
+</header>
+<main class="stage">
+  <div id="dashboard-notice" class="dashboard-notice" role="status" hidden><span id="dashboard-notice-text"></span><a href="/">Open the editor</a></div>
+  <div id="diagram" class="diagram theme-navy"></div>
+</main>
+<noscript><p class="noscript">The dashboard needs JavaScript to read the project saved in this browser. <a href="/">Open the editor</a>.</p></noscript>
+<script type="module" src="/dashboard.js"></script>
+</body></html>

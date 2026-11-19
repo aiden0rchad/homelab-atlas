@@ -1,8 +1,6 @@
 # Networking
 
-Discovery scans are inventory input, not diagram connections. A live Nmap scan runs from the Atlas server's network only after **Find devices**, then waits in the unchecked review. It does not infer links, VLANs, or topology, and it does not change a network card until you explicitly apply a host or endpoint.
-
-Networking in Atlas is for showing how things relate to each other. Connections and VLANs are drawn manually; discovery only supplies inventory.
+Networking in Atlas is for showing how things relate to each other. Connections and VLANs are drawn manually. Service links are a dashboard shortcut, not a network connection, and they do not infer topology.
 
 ## Network nodes
 
@@ -39,9 +37,10 @@ An endpoint can be a network node or a device. Connections show relationships, n
 
 Homelab Atlas does not:
 
-- scan automatically or in the background
+- scan or discover devices
 - request device credentials
 - monitor reachability, traffic, or health
 - configure VLANs, routers, switches, or firewalls
+- check whether a service link is online
 
-Explicit Nmap scans, Docker collection, and imports enter the review; only findings you apply appear in the diagram. The editor has no Docker socket. The optional collector accesses only its configured Docker API. See [Discovery](/discovery) and read the [privacy guidance](/privacy) before sharing topology details.
+Connections, VLANs, and device labels come only from information you add. The editor and dashboard expose no network scanning or control endpoint. Read the [privacy guidance](/privacy) before sharing topology details.

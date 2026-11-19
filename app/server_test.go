@@ -7,12 +7,10 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
-	"net/netip"
 	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
-	"time"
 )
 
 func testAtlasServer(t *testing.T) *atlasServer {
@@ -21,15 +19,11 @@ func testAtlasServer(t *testing.T) *atlasServer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assets, assetPrefix, err := loadStaticAssets(public)
+	server, err := newAtlasServer(public)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &atlasServer{
-		assets: assets, assetPrefix: assetPrefix, allowedHosts: map[string]bool{"localhost": true, "127.0.0.1": true},
-		nmap:       &nmapScanner{allowed: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("192.168.0.0/16")}, run: runNmapProcess},
-		httpClient: &http.Client{Timeout: time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }},
-	}
+	return server
 }
 
 func TestStaticCompressionCachingAndHead(t *testing.T) {
@@ -43,6 +37,10 @@ func TestStaticCompressionCachingAndHead(t *testing.T) {
 		{"app.js/versioned", "app.js", server.assetPrefix + "app.js"},
 		{"styles.css/root", "styles.css", "/styles.css"},
 		{"styles.css/versioned", "styles.css", server.assetPrefix + "styles.css"},
+		{"dashboard.js/root", "dashboard.js", "/dashboard.js"},
+		{"dashboard.js/versioned", "dashboard.js", server.assetPrefix + "dashboard.js"},
+		{"dashboard.css/root", "dashboard.css", "/dashboard.css"},
+		{"dashboard.css/versioned", "dashboard.css", server.assetPrefix + "dashboard.css"},
 	} {
 		t.Run(item.name, func(t *testing.T) {
 			source, err := fs.ReadFile(embeddedFiles, "public/"+item.asset)
@@ -100,13 +98,30 @@ func TestVersionedStaticAssets(t *testing.T) {
 		t.Fatalf("asset fingerprint %q is not hexadecimal", fingerprint)
 	}
 
-	index := request(server, http.MethodGet, "/", nil, nil)
-	body := index.Body.String()
-	if index.Code != http.StatusOK || strings.Count(body, server.assetPrefix) != 2 ||
-		!strings.Contains(body, `href="`+server.assetPrefix+`styles.css"`) ||
-		!strings.Contains(body, `src="`+server.assetPrefix+`app.js"`) ||
-		strings.Contains(body, `href="/styles.css"`) || strings.Contains(body, `src="/app.js"`) {
-		t.Fatalf("index does not reference one versioned asset prefix: status=%d prefix=%q", index.Code, server.assetPrefix)
+	for _, item := range []struct {
+		name   string
+		target string
+		links  [][2]string
+	}{
+		{
+			name: "index", target: "/",
+			links: [][2]string{{`href="` + server.assetPrefix + `styles.css"`, `href="/styles.css"`}, {`src="` + server.assetPrefix + `app.js"`, `src="/app.js"`}},
+		},
+		{
+			name: "dashboard", target: "/dashboard",
+			links: [][2]string{{`href="` + server.assetPrefix + `dashboard.css"`, `href="/dashboard.css"`}, {`src="` + server.assetPrefix + `dashboard.js"`, `src="/dashboard.js"`}},
+		},
+	} {
+		response := request(server, http.MethodGet, item.target, nil, nil)
+		body := response.Body.String()
+		if response.Code != http.StatusOK || strings.Count(body, server.assetPrefix) != 2 {
+			t.Fatalf("%s does not reference one versioned asset prefix: status=%d prefix=%q", item.name, response.Code, server.assetPrefix)
+		}
+		for _, link := range item.links {
+			if !strings.Contains(body, link[0]) || strings.Contains(body, link[1]) {
+				t.Fatalf("%s asset reference was not rewritten", item.name)
+			}
+		}
 	}
 
 	for _, item := range []struct {
@@ -116,6 +131,9 @@ func TestVersionedStaticAssets(t *testing.T) {
 		{"app.js", "text/javascript"},
 		{"styles.css", "text/css"},
 		{"model.js", "text/javascript"},
+		{"dashboard.js", "text/javascript"},
+		{"dashboard.css", "text/css"},
+		{"dashboard-model.js", "text/javascript"},
 	} {
 		source, err := fs.ReadFile(embeddedFiles, "public/"+item.name)
 		if err != nil {
@@ -188,54 +206,6 @@ func request(server http.Handler, method, target string, body []byte, headers ma
 	return record
 }
 
-func TestNmapImportAPIContract(t *testing.T) {
-	server := testAtlasServer(t)
-	body := nmapDocument(`<host><status state="up"/><address addr="192.0.2.10" addrtype="ipv4"/></host>`, "1700000000")
-	headers := map[string]string{"X-Atlas-Request": "1", "Content-Type": "application/xml"}
-	response := request(server, http.MethodPost, "/api/discovery/nmap?scope=Home%20network", body, headers)
-	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "no-store" || !strings.Contains(response.Body.String(), `"homelab-atlas.nmap-import"`) {
-		t.Fatalf("Nmap response: status=%d headers=%v body=%s", response.Code, response.Header(), response.Body.String())
-	}
-	for _, item := range []struct {
-		name, method, target, contentType string
-		want                              int
-	}{
-		{"method", http.MethodGet, "/api/discovery/nmap?scope=Lab", "application/xml", http.StatusMethodNotAllowed},
-		{"mime", http.MethodPost, "/api/discovery/nmap?scope=Lab", "application/json", http.StatusUnsupportedMediaType},
-		{"scope", http.MethodPost, "/api/discovery/nmap", "application/xml", http.StatusBadRequest},
-	} {
-		itemHeaders := map[string]string{"X-Atlas-Request": "1", "Content-Type": item.contentType}
-		if got := request(server, item.method, item.target, body, itemHeaders); got.Code != item.want {
-			t.Errorf("%s status=%d want=%d", item.name, got.Code, item.want)
-		}
-	}
-	large := bytes.Repeat([]byte("x"), maxNmapBytes+1)
-	if got := request(server, http.MethodPost, "/api/discovery/nmap?scope=Lab", large, headers); got.Code != http.StatusRequestEntityTooLarge || strings.Contains(got.Body.String(), string(body)) {
-		t.Fatalf("oversized response: %d %q", got.Code, got.Body.String())
-	}
-
-	server.apiToken = strings.Repeat("a", 32)
-	guardedHeaders := map[string]string{"X-Atlas-Request": "1", "Content-Type": "application/xml", "Authorization": "Bearer " + server.apiToken, "Origin": "http://localhost"}
-	for name, mutate := range map[string]func(*http.Request){
-		"missing X-Atlas-Request": func(req *http.Request) { req.Header.Del("X-Atlas-Request") },
-		"bad host":                func(req *http.Request) { req.Host = "attacker.example" },
-		"bad origin":              func(req *http.Request) { req.Header.Set("Origin", "https://attacker.example") },
-		"bad token":               func(req *http.Request) { req.Header.Set("Authorization", "Bearer wrong") },
-	} {
-		req := httptest.NewRequest(http.MethodPost, "/api/discovery/nmap?scope=Lab", bytes.NewReader(body))
-		req.Host = "localhost"
-		for key, value := range guardedHeaders {
-			req.Header.Set(key, value)
-		}
-		mutate(req)
-		record := httptest.NewRecorder()
-		server.ServeHTTP(record, req)
-		if record.Code != http.StatusForbidden && record.Code != http.StatusUnauthorized {
-			t.Errorf("%s: status=%d", name, record.Code)
-		}
-	}
-}
-
 func TestStaticServerHealthAssetsAndRestrictions(t *testing.T) {
 	server := testAtlasServer(t)
 	for _, item := range []struct {
@@ -244,12 +214,17 @@ func TestStaticServerHealthAssetsAndRestrictions(t *testing.T) {
 		contentType string
 	}{
 		{"/", http.StatusOK, "text/html"},
+		{"/dashboard", http.StatusOK, "text/html"},
+		{"/dashboard/", http.StatusOK, "text/html"},
+		{"/dashboard/extra", http.StatusNotFound, "text/plain"},
 		{"/model.js", http.StatusOK, "text/javascript"},
+		{"/dashboard-model.js", http.StatusOK, "text/javascript"},
 		{"/logos/docker.svg", http.StatusOK, "image/svg+xml"},
 		{"/healthz", http.StatusOK, "text/plain"},
 		{"/licenses/", http.StatusNotFound, "text/plain"},
 		{"/../main.go", http.StatusNotFound, "text/plain"},
 		{"/.git/config", http.StatusNotFound, "text/plain"},
+		{"/api/discovery/sources", http.StatusNotFound, "text/plain"},
 	} {
 		record := request(server, http.MethodGet, item.path, nil, nil)
 		if record.Code != item.status || !strings.HasPrefix(record.Header().Get("Content-Type"), item.contentType) {
@@ -266,98 +241,5 @@ func TestStaticServerHealthAssetsAndRestrictions(t *testing.T) {
 	record = request(server, http.MethodHead, "/app.js", nil, nil)
 	if record.Code != http.StatusOK || record.Body.Len() != 0 {
 		t.Fatalf("HEAD asset status=%d body=%d", record.Code, record.Body.Len())
-	}
-}
-
-func TestDiscoveryAPIHostOriginTokenAndStrictBody(t *testing.T) {
-	server := testAtlasServer(t)
-	server.apiToken = strings.Repeat("a", 32)
-	source := discoverySource{ID: "lab", Name: "Lab", URL: "http://collector.invalid/inventory", token: strings.Repeat("c", 32)}
-	server.sources = []discoverySource{source}
-	baseHeaders := map[string]string{"X-Atlas-Request": "1", "Authorization": "Bearer " + server.apiToken, "Accept-Encoding": "gzip"}
-
-	record := request(server, http.MethodGet, "/api/discovery/sources", nil, baseHeaders)
-	if record.Code != http.StatusOK || strings.Contains(record.Body.String(), source.URL) || strings.Contains(record.Body.String(), source.token) {
-		t.Fatalf("unsafe source response: %d %s", record.Code, record.Body.String())
-	}
-	if record.Header().Get("Cache-Control") != "no-store" || record.Header().Get("Content-Encoding") != "" {
-		t.Fatalf("API caching/compression headers: %v", record.Header())
-	}
-
-	for name, mutate := range map[string]func(*http.Request){
-		"missing header": func(req *http.Request) { req.Header.Del("X-Atlas-Request") },
-		"bad host":       func(req *http.Request) { req.Host = "attacker.example" },
-		"bad origin":     func(req *http.Request) { req.Header.Set("Origin", "https://attacker.example") },
-		"bad token":      func(req *http.Request) { req.Header.Set("Authorization", "Bearer wrong") },
-	} {
-		req := httptest.NewRequest(http.MethodGet, "/api/discovery/sources", nil)
-		req.Host = "localhost"
-		for key, value := range baseHeaders {
-			req.Header.Set(key, value)
-		}
-		mutate(req)
-		record := httptest.NewRecorder()
-		server.ServeHTTP(record, req)
-		if record.Code != http.StatusForbidden && record.Code != http.StatusUnauthorized {
-			t.Errorf("%s: status %d", name, record.Code)
-		}
-	}
-
-}
-
-func TestDiscoveryScanAndErrorRedaction(t *testing.T) {
-	snapshot := testSnapshot()
-	snapshot.Source.ID = "lab"
-	fail := false
-	server := testAtlasServer(t)
-	server.httpClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if fail {
-			return testHTTPResponse(http.StatusInternalServerError, []byte("secret backend body")), nil
-		}
-		if request.Header.Get("Authorization") != "Bearer "+strings.Repeat("c", 32) {
-			t.Fatal("collector authorization missing")
-		}
-		return testHTTPResponse(http.StatusOK, mustJSON(t, snapshot)), nil
-	})}
-	server.sources = []discoverySource{{ID: "lab", Name: "Lab", URL: "https://collector.example/inventory", token: strings.Repeat("c", 32)}}
-	headers := map[string]string{"X-Atlas-Request": "1", "Content-Type": "application/json", "Origin": "http://localhost"}
-	record := request(server, http.MethodPost, "/api/discovery/scan", []byte(`{"sourceId":"lab"}`), headers)
-	if record.Code != http.StatusOK || !strings.Contains(record.Body.String(), discoveryFormat) {
-		t.Fatalf("scan failed: %d %s", record.Code, record.Body.String())
-	}
-	record = request(server, http.MethodPost, "/api/discovery/scan", []byte(`{"sourceId":"lab","url":"http://attacker"}`), headers)
-	if record.Code != http.StatusBadRequest {
-		t.Fatalf("arbitrary URL accepted: %d", record.Code)
-	}
-
-	fail = true
-	record = request(server, http.MethodPost, "/api/discovery/scan", []byte(`{"sourceId":"lab"}`), headers)
-	if record.Code != http.StatusBadGateway || strings.Contains(record.Body.String(), "secret") {
-		t.Fatalf("backend error leaked: %d %s", record.Code, record.Body.String())
-	}
-}
-
-func TestCollectorEndpointsAndAuthentication(t *testing.T) {
-	handler := collectorHandler(strings.Repeat("t", 32))
-	if record := request(handler, http.MethodGet, "/healthz", nil, nil); record.Code != http.StatusOK {
-		t.Fatalf("health status %d", record.Code)
-	}
-	if record := request(handler, http.MethodGet, "/inventory", nil, nil); record.Code != http.StatusUnauthorized {
-		t.Fatalf("inventory status %d", record.Code)
-	}
-	if record := request(handler, http.MethodPost, "/inventory", nil, map[string]string{"Authorization": "Bearer " + strings.Repeat("t", 32)}); record.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("POST inventory status %d", record.Code)
-	}
-	if record := request(handler, http.MethodGet, "/containers/json", nil, nil); record.Code != http.StatusNotFound {
-		t.Fatalf("proxy-like route status %d", record.Code)
-	}
-}
-
-func TestConfiguredRemoteHostsRequireAPIToken(t *testing.T) {
-	if _, remote, err := allowedHostSet("localhost,atlas.internal"); err != nil || !remote {
-		t.Fatalf("remote host not detected: remote=%v err=%v", remote, err)
-	}
-	if _, _, err := allowedHostSet("localhost:8080"); err == nil {
-		t.Fatal("port in allowed host was accepted")
 	}
 }

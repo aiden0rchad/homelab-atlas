@@ -129,7 +129,7 @@ test('all custom backgrounds render at every image site in every theme', () => {
       project.networks[0].secondaryIcon = logo.id;
       project.devices[0].groups[0].services[0].logo = logo.id;
       project.devices[0].groups[0].services[0].name = logo.label;
-      project.devices[0].groups.push({ id: 'grp-custom-row', name: 'One', services: [{ id: 'svc-custom-row', logo: logo.id, name: 'Row', count: 1 }] });
+      project.devices[0].groups.push({ id: 'grp-custom-row', name: 'One', services: [{ id: 'svc-custom-row', logo: logo.id, name: 'Row', count: 1, link: '' }] });
       const svg = renderProject(project);
       const imageCount = svg.split(`<image href="${PNG}"`).length - 1;
       assert.equal(imageCount, 5, `${background} ${theme} image sites`);
