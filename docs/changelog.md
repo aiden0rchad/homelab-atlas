@@ -164,4 +164,4 @@ This file lists the notable changes in each Homelab Atlas release.
 [0.10.0]: https://github.com/aiden0rchad/homelab-atlas/releases/tag/v0.10.0
 [0.11.0]: https://github.com/aiden0rchad/homelab-atlas/releases/tag/v0.11.0
 [0.11.1]: https://github.com/aiden0rchad/homelab-atlas/releases/tag/v0.11.1
-[0.12.0]: https://github.com/aiden0rchad/homelab-atlas/releases/tag/v0.12.0
+[0.12.0]: https://github.com/AuthorShin/homelab-atlas/releases/tag/v0.12.0

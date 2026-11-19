@@ -1,6 +1,6 @@
 services:
   atlas:
-    image: ghcr.io/aiden0rchad/homelab-atlas:${ATLAS_VERSION:-0.12.0}
+    image: ghcr.io/author-shin/homelab-atlas:${ATLAS_VERSION:-0.12.0}
     ports:
       - "${ATLAS_BIND:-127.0.0.1}:8080:8080"
     read_only: true

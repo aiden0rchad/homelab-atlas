@@ -9,7 +9,7 @@ export default defineConfig({
   appearance: 'dark',
   cleanUrls: true,
   lastUpdated: true,
-  sitemap: { hostname: 'https://aiden0rchad.github.io/homelab-atlas/' },
+  sitemap: { hostname: 'https://author-shin.github.io/homelab-atlas/' },
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/homelab-atlas/atlas-mark.svg' }],
     ['meta', { name: 'theme-color', content: '#0b1117' }],
@@ -22,7 +22,7 @@ export default defineConfig({
       { text: 'Install', link: '/getting-started' },
       { text: 'FAQ', link: '/faq' },
       { text: 'Releases', link: '/releases/' },
-      { text: 'GitHub', link: 'https://github.com/aiden0rchad/homelab-atlas' },
+      { text: 'GitHub', link: 'https://github.com/AuthorShin/homelab-atlas' },
     ],
     sidebar: [
       {
@@ -73,13 +73,13 @@ export default defineConfig({
     search: { provider: 'local' },
     outline: { level: [2, 3], label: 'On this page' },
     editLink: {
-      pattern: 'https://github.com/aiden0rchad/homelab-atlas/edit/main/docs/:path',
+      pattern: 'https://github.com/AuthorShin/homelab-atlas/edit/main/docs/:path',
       text: 'Edit this page on GitHub',
     },
     lastUpdated: { text: 'Last updated', formatOptions: { dateStyle: 'medium' } },
-    socialLinks: [{ icon: 'github', link: 'https://github.com/aiden0rchad/homelab-atlas' }],
+    socialLinks: [{ icon: 'github', link: 'https://github.com/AuthorShin/homelab-atlas' }],
     footer: {
-      message: 'MIT licensed · <a href="https://github.com/aiden0rchad/homelab-atlas/blob/main/docs/THIRD_PARTY_NOTICES.md">Logo attribution</a>',
+      message: 'MIT licensed · <a href="https://github.com/AuthorShin/homelab-atlas/blob/main/docs/THIRD_PARTY_NOTICES.md">Logo attribution</a>',
       copyright: 'Homelab Atlas contributors',
     },
     darkModeSwitchLabel: 'Theme',

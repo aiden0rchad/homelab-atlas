@@ -4,7 +4,7 @@ title: "[Feature]: "
 body:
   - type: markdown
     attributes:
-      value: Review the [guides](https://aiden0rchad.github.io/homelab-atlas/) first. Do not include private lab data.
+      value: Review the [guides](https://author-shin.github.io/homelab-atlas/) first. Do not include private lab data.
   - type: textarea
     id: use-case
     attributes:

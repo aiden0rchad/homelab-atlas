@@ -6,7 +6,7 @@ ARG TARGETOS TARGETARCH
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/atlas ./app
 
 FROM alpine:3.22
-LABEL org.opencontainers.image.source="https://github.com/aiden0rchad/homelab-atlas" \
+LABEL org.opencontainers.image.source="https://github.com/AuthorShin/homelab-atlas" \
       org.opencontainers.image.title="Homelab Atlas" \
       org.opencontainers.image.description="Local-first visual editor for clear homelab diagrams" \
       org.opencontainers.image.licenses="MIT"

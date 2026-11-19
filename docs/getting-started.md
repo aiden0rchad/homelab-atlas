@@ -16,7 +16,7 @@ Manual diagrams need only Atlas and a browser. There is no scanner, collector, o
 Download the release Compose file, then start the container:
 
 ```sh
-curl -fsSLO https://github.com/aiden0rchad/homelab-atlas/releases/download/v0.12.0/compose.release.yaml
+curl -fsSLO https://github.com/AuthorShin/homelab-atlas/releases/download/v0.12.0/compose.release.yaml
 docker compose -f compose.release.yaml up -d
 ```
 
@@ -26,7 +26,7 @@ Open `http://localhost:8080`. Verify the server if needed:
 curl http://localhost:8080/healthz
 ```
 
-A healthy response is `ok`. By default, the Compose file pulls `ghcr.io/aiden0rchad/homelab-atlas:0.12.0`. It only listens on the machine running Docker and keeps the container read-only, drops its capabilities, and enables the no-new-privileges setting.
+A healthy response is `ok`. By default, the Compose file pulls `ghcr.io/author-shin/homelab-atlas:0.12.0`. It only listens on the machine running Docker and keeps the container read-only, drops its capabilities, and enables the no-new-privileges setting.
 
 ## Pin and update versions
 
@@ -57,7 +57,7 @@ The image tags work like this:
 Install Git, clone the repository, and build the current source:
 
 ```sh
-git clone https://github.com/aiden0rchad/homelab-atlas.git
+git clone https://github.com/AuthorShin/homelab-atlas.git
 cd homelab-atlas
 docker compose up --build -d
 ```

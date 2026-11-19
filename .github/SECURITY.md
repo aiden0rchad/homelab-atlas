@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Use [GitHub private vulnerability reporting](https://github.com/aiden0rchad/homelab-atlas/security/advisories/new). Do not open a public issue for a suspected vulnerability.
+Use [GitHub private vulnerability reporting](https://github.com/AuthorShin/homelab-atlas/security/advisories/new). Do not open a public issue for a suspected vulnerability.
 
 Describe the affected version or commit, reproduction steps, impact, and any suggested mitigation. Never include credentials, secrets, private addresses, or a personal homelab export; create a minimal fictional project if a file is necessary.
 

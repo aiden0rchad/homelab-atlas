@@ -4,7 +4,7 @@ title: "[Bug]: "
 body:
   - type: markdown
     attributes:
-      value: Before reporting, check the [documentation](https://aiden0rchad.github.io/homelab-atlas/) and remove private lab data. Report vulnerabilities through [private security reporting](https://github.com/aiden0rchad/homelab-atlas/security/advisories/new), not here.
+      value: Before reporting, check the [documentation](https://author-shin.github.io/homelab-atlas/) and remove private lab data. Report vulnerabilities through [private security reporting](https://github.com/AuthorShin/homelab-atlas/security/advisories/new), not here.
   - type: textarea
     id: problem
     attributes:

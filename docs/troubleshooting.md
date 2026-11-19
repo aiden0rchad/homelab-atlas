@@ -62,7 +62,7 @@ Atlas checks the entire import before replacing your current project. If the fil
 - a connection to a missing endpoint or to itself
 - collection or text limits described in [project format](/project-format)
 
-Older projects are validated in their original schema before migration. Discovery data from schema 5 and 6 is removed; a malformed legacy binding still causes the import to be rejected. If the storage or import problem continues, replace any private details with fictional data before opening a [bug report](https://github.com/aiden0rchad/homelab-atlas/issues/new?template=bug_report.yml).
+Older projects are validated in their original schema before migration. Discovery data from schema 5 and 6 is removed; a malformed legacy binding still causes the import to be rejected. If the storage or import problem continues, replace any private details with fictional data before opening a [bug report](https://github.com/AuthorShin/homelab-atlas/issues/new?template=bug_report.yml).
 
 ## Dashboard and browser default
 

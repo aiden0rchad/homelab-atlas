@@ -22,7 +22,7 @@ hero:
       link: /dashboard
     - theme: alt
       text: GitHub
-      link: https://github.com/aiden0rchad/homelab-atlas
+      link: https://github.com/AuthorShin/homelab-atlas
 
 features:
   - title: Add your gear

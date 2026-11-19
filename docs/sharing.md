@@ -27,7 +27,7 @@ The default is separate from autosave and from **Load example** / **Start empty*
 
 Open **File** and choose **Save project** to download an editable JSON file. To move it to another browser or address, choose **File → Import project** and select that file. Atlas checks the whole file before replacing the current project. You can undo an import during the same page session, but reloading clears the undo history.
 
-Try the [complete fictional example on GitHub](https://github.com/aiden0rchad/homelab-atlas/blob/main/docs/example.json), or choose **Load example** in the editor.
+Try the [complete fictional example on GitHub](https://github.com/AuthorShin/homelab-atlas/blob/main/docs/example.json), or choose **Load example** in the editor.
 
 ## Concurrent tabs
 

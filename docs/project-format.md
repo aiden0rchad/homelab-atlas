@@ -122,4 +122,4 @@ The group limit applies to each device array and to the whole project. Each obje
 }
 ```
 
-For a full example with every record type, see [`docs/example.json` on GitHub](https://github.com/aiden0rchad/homelab-atlas/blob/main/docs/example.json). Atlas does not have a separate schema file or a project API endpoint.
+For a full example with every record type, see [`docs/example.json` on GitHub](https://github.com/AuthorShin/homelab-atlas/blob/main/docs/example.json). Atlas does not have a separate schema file or a project API endpoint.
