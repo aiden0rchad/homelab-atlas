@@ -1,7 +1,8 @@
 import { LOGO_IDS, logoDataUri, logoPlate, networkLogoId } from './catalog.js';
 import { validateCustomLogos } from './custom-logos.js';
+import { validateFaviconDataUrl } from './favicon.js';
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 export const THEMES = ['navy', 'light', 'midnight'];
 export const DENSITIES = ['comfortable', 'compact'];
 export const LIMITS = {
@@ -15,7 +16,7 @@ export const LIMITS = {
   link: 2048,
   hardware: 12,
 };
-const LEGACY_SCHEMA_VERSIONS = [1, 2, 3, 4, 5, 6];
+const LEGACY_SCHEMA_VERSIONS = [1, 2, 3, 4, 5, 6, 7];
 const LEGACY_BINDING_LIMIT = 1600;
 
 const ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
@@ -51,13 +52,14 @@ function services(prefix, items) {
 
 export function sampleProject() {
   return {
-    schemaVersion: 7,
+    schemaVersion: 8,
     revision: 1,
     title: 'Home Lab',
     subtitle: 'Private infrastructure · Local services · Built to last',
     theme: 'navy',
     columns: 3,
     density: 'comfortable',
+    favicon: '',
     layout: { mode: 'auto', cards: [] },
     customLogos: [],
     networks: [
@@ -134,11 +136,12 @@ export function parseProject(text) {
     if (version === 1) migrated.layout = { mode: 'auto', cards: [] };
     if (version < 3) migrated.networks = migrated.networks.map(network => ({ ...network, icon: '', secondaryIcon: '' }));
     if (version < 4) migrated.customLogos = [];
+    if (version < 8) migrated.favicon = '';
     if (version >= 5) delete migrated.discovery;
     for (const device of migrated.devices) {
       for (const group of device.groups) {
         for (const service of group.services) {
-          if (version === 5 && typeof service.link === 'string') continue;
+          if (version === 7 || (version === 5 && typeof service.link === 'string')) continue;
           service.link = '';
         }
       }
@@ -163,7 +166,7 @@ function validateProjectVersion(project, version) {
     if (!object || typeof object !== 'object' || Array.isArray(object) || Object.keys(object).some(key => !allowed.includes(key))) fail(`${label} has an invalid structure.`);
   };
   if (!project || typeof project !== 'object' || Array.isArray(project)) fail('Project must be an object.');
-  const keys = ['schemaVersion', 'revision', 'title', 'subtitle', 'theme', 'columns', 'density', ...(version >= 2 ? ['layout'] : []), ...(version >= 4 ? ['customLogos'] : []), ...(version >= 5 && version < 7 ? ['discovery'] : []), 'networks', 'vlans', 'devices', 'connections'];
+  const keys = ['schemaVersion', 'revision', 'title', 'subtitle', 'theme', 'columns', 'density', ...(version >= 8 ? ['favicon'] : []), ...(version >= 2 ? ['layout'] : []), ...(version >= 4 ? ['customLogos'] : []), ...(version >= 5 && version < 7 ? ['discovery'] : []), 'networks', 'vlans', 'devices', 'connections'];
   exact(project, keys, 'Project');
   if (project.schemaVersion !== version) fail(`Unsupported schema version: ${project.schemaVersion ?? 'missing'}.`);
   string(project.title, 'Title');
@@ -172,6 +175,7 @@ function validateProjectVersion(project, version) {
   if (!THEMES.includes(project.theme)) fail('Unknown theme.');
   if (!DENSITIES.includes(project.density)) fail('Unknown density.');
   if (!Number.isInteger(project.columns) || project.columns < 1 || project.columns > 4) fail('Columns must be 1–4.');
+  if (version >= 8) validateFaviconDataUrl(project.favicon);
   for (const [key, maximum] of [['devices', LIMITS.devices], ['networks', LIMITS.networks], ['vlans', LIMITS.networks], ['connections', LIMITS.connections]]) {
     if (!Array.isArray(project[key]) || project[key].length > maximum) fail(`Invalid or excessive ${key}.`);
   }

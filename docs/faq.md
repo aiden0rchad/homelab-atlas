@@ -22,7 +22,7 @@ Search filters the current catalog; clear it to see every tile. Uploads must be 
 
 ### Why was my project import rejected?
 
-The whole file must pass schema and reference validation before Atlas replaces the open project. Check its size, schema version, IDs, logos, connections, and service links. Version-7 files cannot contain a `discovery` field. The current project stays unchanged after rejection. See [Import validation details](/troubleshooting#import-validation-details).
+The whole file must pass schema and reference validation before Atlas replaces the open project. Check its size, schema version, IDs, logos, connections, service links, and favicon. Version-8 files cannot contain a `discovery` field. The current project stays unchanged after rejection. See [Import validation details](/troubleshooting#import-validation-details).
 
 ## Dashboard and service links
 

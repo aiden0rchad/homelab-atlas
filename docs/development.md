@@ -31,12 +31,12 @@ npm run build:icons
 npm run check:icons
 docker compose config
 docker compose --project-directory . -f deploy/compose.release.yaml config
-python3 tools/scripts/release.py v0.12.0 --output dist
+python3 tools/scripts/release.py v0.12.1 --output dist
 ```
 
 `npm test` checks logo data, runs the Node tests, runs `go test ./...`, and runs the Python release tests. Release files go into the ignored `dist/` directory, and the release workflow checks their checksums too.
 
-Node tests cover the project schema, migrations, link validation, storage decoding, dashboard links, custom logos, and layout calculations. Go tests cover static serving, `/dashboard`, compression, caching, security headers, and legacy API 404s.
+Node tests cover the project schema, migrations, link and favicon validation, storage decoding, dashboard links, custom logos, and layout calculations. Go tests cover static serving, `/dashboard`, compression, caching, security headers, and legacy API 404s.
 
 ## Documentation
 
@@ -67,7 +67,7 @@ Annotated guide screenshots live in `docs/public/guides/`; their crops, marks, a
 
 Keep the logos in the repository. Do not load them, fonts, or other images from a CDN at runtime. Product names and trademarks still belong to their owners; see [THIRD_PARTY_NOTICES.md on GitHub](https://github.com/AuthorShin/homelab-atlas/blob/main/docs/THIRD_PARTY_NOTICES.md).
 
-Project uploads are different from bundled logos. They are decoded by the browser, converted to PNG, limited to 512px and 200,000 data-URL characters each, and stored only in project JSON. Imports validate PNG structure, native zlib output within a fixed bound, and native browser image decoding. Projects allow 32 uploads and 1,200,000 total custom data-URL characters. Original files are limited to 2,000,000 bytes, 4096px per side, and 16 million pixels.
+Project uploads are different from bundled logos. They are decoded by the browser, converted to PNG, limited to 512px and 200,000 data-URL characters each, and stored only in project JSON. Imports validate PNG structure, native zlib output within a fixed bound, and native browser image decoding. Projects allow 32 uploads and 1,200,000 total custom data-URL characters. Original files are limited to 2,000,000 bytes, 4096px per side, and 16 million pixels. A project favicon uses the same upload checks, is stored as a square PNG no larger than 128px, and is limited to 120,000 data-URL characters.
 
 ## Preparing a release
 

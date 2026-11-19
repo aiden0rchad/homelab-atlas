@@ -172,6 +172,14 @@ test('privacy can be disabled and uploaded PNG bytes remain unchanged', () => {
   assert.equal(sanitizeExportProject(project).customLogos[0].dataUrl, PNG);
 });
 
+test('favicons are project metadata and never appear in exports', () => {
+  const project = sampleProject();
+  project.favicon = PNG;
+  const snapshot = createExportSnapshot(project, { hideNetworkDetails: false });
+  assert.equal(snapshot.svg.includes(PNG), false);
+  assert.equal(sanitizeExportProject(project).favicon, PNG);
+});
+
 test('export snapshots capture SVG, filename, and options together', () => {
   const project = sampleProject();
   project.title = 'Original 10.0.0.2';

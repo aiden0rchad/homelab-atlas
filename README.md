@@ -25,11 +25,11 @@ Atlas lays out your diagram automatically, with optional manual positioning and 
 You'll need Docker with Compose v2:
 
 ```sh
-curl -fsSLO https://github.com/AuthorShin/homelab-atlas/releases/download/v0.12.0/compose.release.yaml
+curl -fsSLO https://github.com/AuthorShin/homelab-atlas/releases/download/v0.12.1/compose.release.yaml
 docker compose -f compose.release.yaml up -d
 ```
 
-Open `http://localhost:8080`. This uses the `0.12.0` image and only listens on the machine running Docker. Images are available for Linux AMD64 and ARM64.
+Open `http://localhost:8080`. This uses the `0.12.1` image and only listens on the machine running Docker. Images are available for Linux AMD64 and ARM64.
 
 For access from another computer, updates, or running without Docker, see the [setup guide](https://authorshin.github.io/homelab-atlas/getting-started). The [release page](https://github.com/AuthorShin/homelab-atlas/releases/latest) has the portable ZIP, Compose file, and checksums.
 
@@ -37,7 +37,7 @@ For access from another computer, updates, or running without Docker, see the [s
 
 Open **File** and start with **Load example** to see how it works, or **Start empty** for your own lab. Add devices, fill in whatever hardware details you want to show, and group the services running on each one. Visual logo pickers are searchable and work offline. Click a device icon or an existing service logo to replace it.
 
-You can upload PNG, JPG, WebP, or SVG logos up to 2 MB, preview their contrast background, and reuse them across devices, services, and network nodes. SVG uploads are converted to PNG, and stored images are at most 512px. They stay in project JSON and work offline and in exports. The bundled catalog still includes 27 provider marks. Atlas starts with an automatic layout; **Arrange** in the canvas header lets you move or resize device cards. **Export** previews and downloads a PNG or SVG, with network details hidden by default and optional literal terms for custom names. Use **File → Save project** to download a JSON copy you can edit later.
+You can upload PNG, JPG, WebP, or SVG logos up to 2 MB, preview their contrast background, and reuse them across devices, services, and network nodes. SVG uploads are converted to PNG, and stored images are at most 512px. They stay in project JSON and work offline and in exports. Use **Diagram settings → Appearance → Upload favicon** to give the project its own browser-tab icon; it is saved with the project and stays out of image exports. The bundled catalog still includes 27 provider marks. Atlas starts with an automatic layout; **Arrange** in the canvas header lets you move or resize device cards. **Export** previews and downloads a PNG or SVG, with network details hidden by default and optional literal terms for custom names. Use **File → Save project** to download a JSON copy you can edit later.
 
 Give a service an optional `http://` or `https://` link in its **Apps** tab. Open **Dashboard** in the top bar for a read-only view of the same project where linked service tiles open in a new tab. Links are dashboard-only and never appear in SVG or PNG exports. Use **File → Save as browser default** to choose the project that opens when this browser has no autosaved project, and **Clear browser default** to remove it.
 

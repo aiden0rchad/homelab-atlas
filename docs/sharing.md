@@ -2,7 +2,7 @@
 
 JSON is your editable project file. SVG and PNG are images of it. The dashboard is a read-only browser view of the same project.
 
-Atlas 0.12 saves schema version 7. Imports from schema versions 1 through 6 preserve inventory, custom logos, connections, and manual layout. Discovery data from older projects is discarded. Valid schema-5 service links are kept; other older services gain an empty link. Older Atlas versions cannot open schema version 7.
+Atlas 0.12.1 saves schema version 8. Imports from schema versions 1 through 7 preserve inventory, custom logos, connections, manual layout, and service links. Discovery data from older projects is discarded. Valid schema-5 service links are kept; other older services gain an empty link. Schema-7 projects gain an empty favicon. Older Atlas versions cannot open schema version 8.
 
 ## Browser autosave
 

@@ -56,7 +56,10 @@ Choose **Diagram settings** in the canvas header to change:
 - Navy, Light, or Midnight diagram theme
 - 1–4 columns
 - Comfortable or Compact density
+- browser tab icon
 - VLAN chip names and colors
+
+Use **Upload favicon** to give this project its own browser-tab icon. Atlas accepts PNG, JPG, WebP, SVG, or ICO files up to 2 MB and stores a square PNG up to 128px in the project. **Remove** restores the default Atlas mark. The favicon appears in the editor and dashboard tabs and is not drawn into SVG or PNG exports.
 
 The project title is in the top bar. These settings change your diagram. They are separate from the light/dark switch on this documentation site.
 

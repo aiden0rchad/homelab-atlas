@@ -6,6 +6,7 @@ import {
 import { createExportSnapshot } from './export.js';
 import { applyProjectChange, filterInventory, hasStorageConflict, pngDimensions, updateSelection } from './state.js';
 import { CUSTOM_LOGO_LIMITS, normalizeLogoUpload, verifyCustomLogoDecodes } from './custom-logos.js';
+import { applyDocumentFavicon, normalizeFaviconUpload } from './favicon.js';
 import { DEFAULT_PROJECT_STORAGE_KEY, decodeProjectRecord } from './project-storage.js';
 
 const $ = selector => document.querySelector(selector);
@@ -250,6 +251,7 @@ async function loadProject() {
 
 function render() {
   validateProject(project);
+  applyDocumentFavicon(project.favicon);
   $('#project-title').value = project.title;
   $('#preview').innerHTML = renderProject(project);
   const selectedNode = selected && $(`#preview [data-device="${CSS.escape(selected)}"], #preview [data-network="${CSS.escape(selected)}"]`);
@@ -364,11 +366,33 @@ function renderInventory() {
 }
 
 function projectForm() {
-  return `<div class="settings"><section class="inspector-section"><h3>Appearance</h3><label>Subtitle<input data-project="subtitle" maxlength="120"></label><div class="form-grid"><label>Theme<select data-project="theme"><option value="navy">Navy</option><option value="light">Light</option><option value="midnight">Midnight</option></select></label><label>Columns<select data-project="columns"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div><label>Density<select data-project="density"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label></section><section class="inspector-section"><div class="section-head"><h3>VLANs</h3><button type="button" data-add-vlan>${icon('add')}VLAN</button></div><div id="vlan-list" class="vlan-list"></div></section><section class="inspector-section"><h3>Links</h3><button type="button" data-edit-connections>Edit connections</button></section></div>`;
+  return `<div class="settings"><section class="inspector-section"><h3>Appearance</h3><label>Subtitle<input data-project="subtitle" maxlength="120"></label><div class="form-grid"><label>Theme<select data-project="theme"><option value="navy">Navy</option><option value="light">Light</option><option value="midnight">Midnight</option></select></label><label>Columns<select data-project="columns"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div><label>Density<select data-project="density"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label><div class="favicon-setting"><span class="favicon-preview"><img data-favicon-preview alt=""></span><div class="favicon-copy"><strong>Browser tab icon</strong><span>PNG, JPG, WebP, SVG, or ICO. Stored as a PNG up to 128px.</span><div class="favicon-actions"><button type="button" data-favicon-upload>Upload favicon</button><button type="button" class="danger" data-favicon-clear hidden>Remove</button></div></div></div><input data-favicon-file type="file" accept=".png,.jpg,.jpeg,.webp,.svg,.ico,image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,image/vnd.microsoft.icon" hidden></section><section class="inspector-section"><div class="section-head"><h3>VLANs</h3><button type="button" data-add-vlan>${icon('add')}VLAN</button></div><div id="vlan-list" class="vlan-list"></div></section><section class="inspector-section"><h3>Links</h3><button type="button" data-edit-connections>Edit connections</button></section></div>`;
 }
 
 function bindProjectForm(root) {
   for (const key of ['subtitle', 'theme', 'columns', 'density']) root.querySelector(`[data-project=${key}]`).value = project[key];
+  const faviconPreview = root.querySelector('[data-favicon-preview]');
+  faviconPreview.src = project.favicon || '/favicon.svg';
+  faviconPreview.alt = project.favicon ? 'Custom browser tab icon' : 'Default Homelab Atlas icon';
+  root.querySelector('[data-favicon-clear]').hidden = !project.favicon;
+  const faviconInput = root.querySelector('[data-favicon-file]');
+  root.querySelector('[data-favicon-upload]').addEventListener('click', () => faviconInput.click());
+  faviconInput.addEventListener('change', async event => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const current = project;
+    try {
+      const favicon = await normalizeFaviconUpload(file);
+      if (project !== current) throw new Error('The project changed while the favicon was loading. Try again.');
+      if (change(candidate => { candidate.favicon = favicon; })) toast('Browser tab icon updated.');
+    } catch (error) {
+      toast(error.message);
+    }
+  });
+  root.querySelector('[data-favicon-clear]').addEventListener('click', () => {
+    if (change(candidate => { candidate.favicon = ''; })) toast('Browser tab icon reset to default.');
+  });
   root.querySelector('#vlan-list').replaceChildren(...project.vlans.map(vlan => {
     const row = document.createElement('div');
     row.className = 'vlan-row';

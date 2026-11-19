@@ -1,17 +1,18 @@
 # Project format
 
-**File → Save project** downloads schema-version-7 JSON. **File → Import project** accepts schema versions 1 through 6 after strict validation. Version 1 gains automatic layout, versions 1 and 2 gain empty network-logo fields, versions 1 through 3 gain an empty `customLogos` array, and versions 5 and 6 lose their discovery data. A schema-5 project that already has valid service links keeps them; other older services gain an empty `link`. Older Atlas versions cannot open schema version 7.
+**File → Save project** downloads schema-version-8 JSON. **File → Import project** accepts schema versions 1 through 7 after strict validation. Version 1 gains automatic layout, versions 1 and 2 gain empty network-logo fields, versions 1 through 3 gain an empty `customLogos` array, versions 5 and 6 lose their discovery data, and version 7 gains an empty `favicon`. A schema-5 project that already has valid service links keeps them; other older services gain an empty `link`. A schema-7 project keeps its service links. Older Atlas versions cannot open schema version 8.
 
 ## Top-level fields
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schemaVersion` | integer | Must be `7` |
+| `schemaVersion` | integer | Must be `8` |
 | `revision` | integer | Browser conflict/change revision, from 0 through 1,000,000,000 |
 | `title`, `subtitle` | string | Diagram heading text, at most 120 characters each |
 | `theme` | string | `navy`, `light`, or `midnight` |
 | `columns` | integer | Device layout columns, 1–4 |
 | `density` | string | `comfortable` or `compact` |
+| `favicon` | string | Empty, or a stored PNG browser-tab icon |
 | `layout` | object | Device-card layout mode and saved rectangles |
 | `customLogos` | array | Uploaded PNG assets stored with the project |
 | `networks` | array | Network node records |
@@ -19,7 +20,7 @@
 | `devices` | array | Device cards, hardware facts, groups, and services |
 | `connections` | array | Directed logical relationships between network/device endpoints |
 
-Schema version 7 has no `discovery` field. A version-7 file containing one is rejected as an unknown key.
+Schema version 8 has no `discovery` field. A version-8 file containing one is rejected as an unknown key.
 
 ## Record fields
 
@@ -45,7 +46,7 @@ Links appear only on the [dashboard](/dashboard). They are not rendered into SVG
 
 ## Migration
 
-Imports are validated in their original schema before migration, then validated again as schema version 7. The current project stays open if any step fails.
+Imports are validated in their original schema before migration, then validated again as schema version 8. The current project stays open if any step fails.
 
 | Old schema | Migration |
 |---|---|
@@ -53,13 +54,18 @@ Imports are validated in their original schema before migration, then validated 
 | 1–2 | Add empty network `icon` and `secondaryIcon` fields |
 | 1–3 | Add an empty `customLogos` array |
 | 5–6 | Remove `discovery`; add empty service links except for valid schema-5 links, which are kept |
-| 7 | No migration; the file must already match this schema |
+| 7 | Add an empty `favicon`; keep service links |
+| 8 | No migration; the file must already match this schema |
 
 Schema-5 projects came in two variants: upstream projects with discovery data and fork projects with service links. Both are accepted. Discovery bindings are validated before they are discarded, so malformed legacy data does not silently pass. Raw discovery snapshots were never stored in the project.
 
 ## Custom logos
 
 Custom logo IDs start with `custom-` and use the same safe ASCII ID characters, with a total limit of 64 characters. Labels are trimmed, nonempty text up to 120 characters. `background` is `none`, `light`, or `dark`. `dataUrl` is a canonical `data:image/png;base64,...` value. Raw SVG, remote URLs, blob URLs, extra fields, duplicates, and IDs colliding with catalog or project records are rejected.
+
+## Favicon
+
+The optional project favicon is uploaded from **Diagram settings → Appearance → Upload favicon**. Atlas accepts PNG, JPG, WebP, SVG, or ICO files up to 2 MB, 4096px per side, and 16 million pixels. It converts the image to a square PNG with a maximum side of 128px and stores the canonical data URL in `favicon`. Leave the field empty to use the default Atlas mark. Favicons are shown in the editor and dashboard browser tabs, are part of saved JSON, and are never rendered into SVG or PNG diagrams.
 
 ## IDs and references
 
@@ -96,6 +102,7 @@ Coordinates are integer diagram units relative to the upper-left of the device r
 | Original upload | 2,000,000 bytes; 4096px per side; 16,000,000 pixels |
 | Stored custom PNG | 512px per side; 200,000 data-URL characters |
 | Custom data URLs, total | 1,200,000 characters |
+| Stored favicon PNG | 128px per side; 120,000 data-URL characters |
 
 The group limit applies to each device array and to the whole project. Each object only accepts the keys listed above. Extra fields are rejected rather than preserved.
 
@@ -103,13 +110,14 @@ The group limit applies to each device array and to the whole project. Each obje
 
 ```json
 {
-  "schemaVersion": 7,
+  "schemaVersion": 8,
   "revision": 1,
   "title": "Small Lab",
   "subtitle": "Fictional example",
   "theme": "navy",
   "columns": 1,
   "density": "comfortable",
+  "favicon": "",
   "layout": {
     "mode": "auto",
     "cards": []

@@ -2,6 +2,17 @@
 
 This file lists the notable changes in each Homelab Atlas release.
 
+## [0.12.1] - 2026-11-19
+
+### Added
+
+- Added a per-project browser-tab icon under **Diagram settings → Appearance**. Upload PNG, JPG, WebP, SVG, or ICO files up to 2 MB; Atlas stores a square PNG up to 128px in the project, applies it in the editor and dashboard, and keeps it out of SVG and PNG exports.
+- Added schema version 8 with a `favicon` field. Schema-7 projects migrate automatically, gain an empty favicon, and keep their service links.
+
+### Changed
+
+- Updated the release downloads, image tags, and documentation for v0.12.1.
+
 ## [0.12.0] - 2026-11-18
 
 ### Added
@@ -165,3 +176,4 @@ This file lists the notable changes in each Homelab Atlas release.
 [0.11.0]: https://github.com/aiden0rchad/homelab-atlas/releases/tag/v0.11.0
 [0.11.1]: https://github.com/aiden0rchad/homelab-atlas/releases/tag/v0.11.1
 [0.12.0]: https://github.com/AuthorShin/homelab-atlas/releases/tag/v0.12.0
+[0.12.1]: https://github.com/AuthorShin/homelab-atlas/releases/tag/v0.12.1

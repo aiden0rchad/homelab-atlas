@@ -1,3 +1,4 @@
+import { applyDocumentFavicon } from './favicon.js';
 import { renderProject } from './model.js';
 import { DASHBOARD_DEFAULT_KEY, DASHBOARD_STORAGE_KEY, dashboardStats, decodeStoredProject, serviceLinks } from './dashboard-model.js';
 
@@ -65,6 +66,7 @@ function render() {
   const project = decoded.project;
   const stats = dashboardStats(project);
   const scroll = { x: window.scrollX, y: window.scrollY };
+  applyDocumentFavicon(project.favicon);
   document.title = `${project.title} · Homelab Atlas Dashboard`;
   $('#dashboard-title').textContent = project.title;
   $('#dashboard-status').textContent = decoded.source === 'saved'

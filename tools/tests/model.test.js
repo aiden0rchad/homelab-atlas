@@ -10,6 +10,8 @@ import {
 } from '../../app/public/model.js';
 import { applyProjectChange, filterInventory, hasStorageConflict, pngDimensions, updateSelection } from '../../app/public/state.js';
 
+const FAVICON_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+
 function removeServiceLinks(project) {
   for (const device of project.devices) {
     for (const group of device.groups) {
@@ -135,6 +137,7 @@ test('schema 1 through 4 imports migrate strictly while preserving data', () => 
   setManualCard(version2, 'dev-storage', { x: 64, y: 32, w: 300, h: 400 });
   version2.schemaVersion = 2;
   delete version2.customLogos;
+  delete version2.favicon;
   removeServiceLinks(version2);
   for (const network of version2.networks) { delete network.icon; delete network.secondaryIcon; }
   const version2Before = structuredClone(version2);
@@ -165,6 +168,7 @@ test('schema 1 through 4 imports migrate strictly while preserving data', () => 
   const version3 = sampleProject();
   version3.schemaVersion = 3;
   delete version3.customLogos;
+  delete version3.favicon;
   removeServiceLinks(version3);
   version3.networks[0].icon = 'cloudflare';
   version3.networks[0].secondaryIcon = 'tailscale';
@@ -177,6 +181,7 @@ test('schema 1 through 4 imports migrate strictly while preserving data', () => 
   const version4 = sampleProject();
   version4.schemaVersion = 4;
   version4.customLogos = [];
+  delete version4.favicon;
   removeServiceLinks(version4);
   const migrated4 = parseProject(JSON.stringify(version4));
   assert.equal(migrated4.schemaVersion, SCHEMA_VERSION);
@@ -187,6 +192,7 @@ test('schema 1 through 4 imports migrate strictly while preserving data', () => 
 test('schema 5 and 6 imports drop discovery data and preserve or backfill links', () => {
   const upstream5 = sampleProject();
   upstream5.schemaVersion = 5;
+  delete upstream5.favicon;
   removeServiceLinks(upstream5);
   const target = upstream5.devices[0].groups[0].services[0];
   upstream5.discovery = { bindings: [{ sourceId: 'docker', key: `container:${'a'.repeat(64)}`, deviceId: upstream5.devices[0].id, serviceId: target.id }] };
@@ -200,6 +206,7 @@ test('schema 5 and 6 imports drop discovery data and preserve or backfill links'
 
   const fork5 = sampleProject();
   fork5.schemaVersion = 5;
+  delete fork5.favicon;
   fork5.devices[0].groups[0].services[0].link = 'https://atlas.example.test/';
   const migratedFork = parseProject(JSON.stringify(fork5));
   assert.equal(migratedFork.schemaVersion, SCHEMA_VERSION);
@@ -209,6 +216,7 @@ test('schema 5 and 6 imports drop discovery data and preserve or backfill links'
 
   const upstream6 = sampleProject();
   upstream6.schemaVersion = 6;
+  delete upstream6.favicon;
   removeServiceLinks(upstream6);
   upstream6.discovery = { bindings: [] };
   const migrated6 = parseProject(JSON.stringify(upstream6));
@@ -217,11 +225,42 @@ test('schema 5 and 6 imports drop discovery data and preserve or backfill links'
   assert.ok(migrated6.devices.every(device => device.groups.every(group => group.services.every(service => service.link === ''))));
 });
 
+test('schema 7 loads migrate to schema 8 with an empty favicon and keep service links', () => {
+  const project = sampleProject();
+  project.schemaVersion = 7;
+  delete project.favicon;
+  project.devices[0].groups[0].services[0].link = 'https://atlas.example.test/';
+  const before = structuredClone(project);
+  const migrated = parseProject(JSON.stringify(project));
+  assert.deepEqual(project, before);
+  assert.equal(migrated.schemaVersion, SCHEMA_VERSION);
+  assert.equal(migrated.favicon, '');
+  assert.equal(migrated.devices[0].groups[0].services[0].link, 'https://atlas.example.test/');
+  assert.equal(migrated.devices[0].groups[0].services[1].link, '');
+});
+
+test('schema 8 favicon validation accepts a stored PNG and rejects unsafe data', () => {
+  const project = sampleProject();
+  assert.equal(project.schemaVersion, 8);
+  assert.equal(project.favicon, '');
+  assert.equal(validateProject(project), true);
+  project.favicon = FAVICON_PNG;
+  assert.equal(validateProject(project), true);
+  assert.equal(parseProject(JSON.stringify(project)).favicon, FAVICON_PNG);
+  for (const favicon of ['data:image/svg+xml;base64,PHN2Zz4=', 'https://example.test/favicon.png', undefined, null]) {
+    project.favicon = favicon;
+    assert.throws(() => validateProject(project), /Favicon/);
+  }
+  delete project.favicon;
+  assert.throws(() => validateProject(project), /Favicon/);
+});
+
 test('legacy project record IDs may match bundled logo IDs', () => {
   for (const version of [1, 2, 3]) {
     const project = sampleProject();
     project.schemaVersion = version;
     delete project.customLogos;
+    delete project.favicon;
     removeServiceLinks(project);
     project.connections = [];
     project.networks[0].id = 'server';
@@ -302,7 +341,7 @@ test('IDs, counts, and connection references are enforced', () => {
   assert.throws(() => validateProject(fractional), /1–99/);
 });
 
-test('service links require a full http or https URL in schema 7', () => {
+test('service links require a full http or https URL in schema 8', () => {
   const project = sampleProject();
   const service = project.devices[0].groups[0].services[0];
   for (const link of ['', 'https://atlas.example.test/', 'http://192.0.2.10:8080/path?q=1#section', 'https://localhost:9443']) {

@@ -12,7 +12,7 @@ The dashboard reads:
 2. the browser default, when there is no autosaved project
 3. the included example, when neither exists
 
-The fallback is shown in the top bar and in a notice above the diagram. **Refresh** re-reads browser storage. The dashboard also updates when another tab saves the project, when storage changes, and when the tab becomes visible again.
+The fallback is shown in the top bar and in a notice above the diagram. **Refresh** re-reads browser storage. The dashboard also updates when another tab saves the project, when storage changes, and when the tab becomes visible again. A custom browser-tab icon saved with the project is applied to the dashboard tab too; projects without one use the default Atlas mark.
 
 ## Service links
 

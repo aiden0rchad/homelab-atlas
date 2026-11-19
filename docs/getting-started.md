@@ -16,7 +16,7 @@ Manual diagrams need only Atlas and a browser. There is no scanner, collector, o
 Download the release Compose file, then start the container:
 
 ```sh
-curl -fsSLO https://github.com/AuthorShin/homelab-atlas/releases/download/v0.12.0/compose.release.yaml
+curl -fsSLO https://github.com/AuthorShin/homelab-atlas/releases/download/v0.12.1/compose.release.yaml
 docker compose -f compose.release.yaml up -d
 ```
 
@@ -26,14 +26,14 @@ Open `http://localhost:8080`. Verify the server if needed:
 curl http://localhost:8080/healthz
 ```
 
-A healthy response is `ok`. By default, the Compose file pulls `ghcr.io/authorshin/homelab-atlas:0.12.0`. It only listens on the machine running Docker and keeps the container read-only, drops its capabilities, and enables the no-new-privileges setting.
+A healthy response is `ok`. By default, the Compose file pulls `ghcr.io/authorshin/homelab-atlas:0.12.1`. It only listens on the machine running Docker and keeps the container read-only, drops its capabilities, and enables the no-new-privileges setting.
 
 ## Pin and update versions
 
 To pin a version, create `.env` next to `compose.release.yaml`:
 
 ```dotenv
-ATLAS_VERSION=0.12.0
+ATLAS_VERSION=0.12.1
 ```
 
 When you want to update, change `ATLAS_VERSION` in `.env` to a version that has been published. Then pull it and recreate the container without changing the hostname or port:
@@ -43,11 +43,11 @@ docker compose -f compose.release.yaml pull
 docker compose -f compose.release.yaml up -d
 ```
 
-Save an editable JSON project before you update or downgrade. Your project is stored by the browser, not in a container volume. Atlas 0.12 uses schema version 7 and imports schema versions 1 through 6. Existing inventory, uploaded logos, connections, and manual layouts are preserved. Discovery data from older projects is discarded, and older service-link fields are kept or filled with an empty link. Atlas does not migrate projects backward; older releases cannot open schema version 7.
+Save an editable JSON project before you update or downgrade. Your project is stored by the browser, not in a container volume. Atlas 0.12.1 uses schema version 8 and imports schema versions 1 through 7. Existing inventory, uploaded logos, connections, manual layouts, and service links are preserved. Discovery data from older projects is discarded, and older service-link fields are kept or filled with an empty link. Schema-7 projects gain an empty favicon. Atlas does not migrate projects backward; older releases cannot open schema version 8.
 
 The image tags work like this:
 
-- `0.12.0` and `v0.12.0` identify this release.
+- `0.12.1` and `v0.12.1` identify this release.
 - `0.12` moves to the newest compatible 0.12 patch.
 - `latest` moves to the newest stable release.
 - A published image digest never changes; the [release guide](/releases/) explains how to pin one.
@@ -92,8 +92,8 @@ go run ./app
 For the portable release, extract the ZIP and move into its top-level directory first:
 
 ```sh
-unzip homelab-atlas-0.12.0.zip
-cd homelab-atlas-0.12.0
+unzip homelab-atlas-0.12.1.zip
+cd homelab-atlas-0.12.1
 go run ./app
 ```
 

@@ -156,6 +156,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .inspector input, .inspector select, .inspector textarea { width: 100%; }
 .inspector textarea { min-height: 105px; resize: vertical; }
 .form-grid, .position-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; }
+.favicon-setting { display: grid; grid-template-columns: 48px minmax(0,1fr); gap: 10px; align-items: start; margin-top: 12px; padding: 9px; border: 1px solid var(--line-soft); border-radius: 8px; background: #141925; }
+.favicon-preview { display: grid; width: 48px; height: 48px; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: #0b1117; }
+.favicon-preview img { width: 40px; height: 40px; object-fit: contain; }
+.favicon-copy { display: grid; min-width: 0; gap: 3px; }
+.favicon-copy strong { font-size: 12px; }
+.favicon-copy > span { color: var(--muted); font-size: 10px; }
+.favicon-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.favicon-actions button { min-height: 28px; font-size: 11px; }
+.favicon-actions [hidden] { display: none; }
 .network-logo-field { display: grid; gap: 5px; margin-top: 10px; }
 .network-logo-field > span { font-size: 11px; font-weight: 650; }
 .network-logo-field button { justify-content: flex-start; width: 100%; min-height: 46px; text-align: left; }

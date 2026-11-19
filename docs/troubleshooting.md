@@ -9,8 +9,9 @@ Start with the [FAQ](/faq) for setup, dashboard, storage, layout, and saving exp
 | Project is empty at another URL | Use the same browser profile, hostname, port, and protocol. If you changed the address, import a saved JSON backup. |
 | “Not saved — storage unavailable” | Allow site storage, leave private mode, and check the browser's storage quota or policy. If the project is still open, download JSON right away. |
 | Another-tab conflict banner | Download the project in the current tab first. Then choose **Keep my edits** or **Load saved version** based on which copy you want. |
-| Import rejected | Make sure it is valid Homelab Atlas schema-version-7 JSON, or schema version 1 through 6 for migration, no larger than 2 MB. Unknown keys, duplicate or unsafe IDs, unknown logo IDs, bad references, and malformed links are rejected. |
+| Import rejected | Make sure it is valid Homelab Atlas schema-version-8 JSON, or schema version 1 through 7 for migration, no larger than 2 MB. Unknown keys, duplicate or unsafe IDs, unknown logo IDs, bad references, malformed links, and invalid favicons are rejected. |
 | Custom logo upload rejected | Use a PNG, JPG, WebP, or safe SVG no larger than 2 MB, 4096px per side, or 16 million pixels. Active or externally loaded SVG content is rejected. |
+| Favicon upload rejected | Use a PNG, JPG, WebP, SVG, or ICO no larger than 2 MB, 4096px per side, or 16 million pixels. Atlas resizes it to a square PNG up to 128px. Active or externally loaded SVG content is rejected. |
 | Service link rejected | Leave the field empty or use a complete `http://` or `https://` URL up to 2,048 characters with no spaces. Bare hostnames, relative paths, and other schemes are rejected. |
 | Dashboard tile does not open | The service has no valid link, or the saved project is invalid. Check the link in the editor's **Apps** tab. Only linked services become anchors. |
 | Dashboard shows the example | This browser origin has no autosaved project and no browser default. Open the editor, import or create a project, or save a browser default. |
@@ -54,15 +55,16 @@ Atlas checks the entire import before replacing your current project. If the fil
 - unsupported or missing `schemaVersion`
 - a file larger than 2,000,000 bytes
 - unknown object keys or invalid field types
-- a version-7 file with a `discovery` key
+- a version-8 file with a `discovery` key
 - IDs that are duplicated, longer than 64 characters, or contain unsupported characters
 - unknown bundled or custom logo IDs
 - service counts outside 1–99
 - service links that are not empty or complete `http://`/`https://` URLs
+- a favicon that is not empty or a canonical PNG data URL at 128px or smaller
 - a connection to a missing endpoint or to itself
 - collection or text limits described in [project format](/project-format)
 
-Older projects are validated in their original schema before migration. Discovery data from schema 5 and 6 is removed; a malformed legacy binding still causes the import to be rejected. If the storage or import problem continues, replace any private details with fictional data before opening a [bug report](https://github.com/AuthorShin/homelab-atlas/issues/new?template=bug_report.yml).
+Older projects are validated in their original schema before migration. Schema 7 gains an empty favicon. Discovery data from schema 5 and 6 is removed; a malformed legacy binding still causes the import to be rejected. If the storage or import problem continues, replace any private details with fictional data before opening a [bug report](https://github.com/AuthorShin/homelab-atlas/issues/new?template=bug_report.yml).
 
 ## Dashboard and browser default
 
